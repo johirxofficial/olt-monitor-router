@@ -1,0 +1,27 @@
+# secrets and runtime state (root only; olt_monitor/data is bundled data)
+.env
+.env.bak
+/data/
+/logs/
+/backups/
+config/config.yaml
+config/optical_oids.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# release artefacts and local captures
+/dist/
+*.zip
+olt_walk.txt
+*.log
+
+# editors / operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

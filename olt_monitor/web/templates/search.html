@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}Search: {{ q }} - {{ app_title }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small mb-2">
+    <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+    <li class="breadcrumb-item active">Search</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h5 class="mb-0">
+    <i class="bi bi-search"></i> Results for <span class="text-primary">{{ q }}</span>
+    {% if result.mac %}<span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">{{ result.mac }}</span>{% endif %}
+  </h5>
+  <form class="d-flex" method="get" action="/search">
+    <input class="form-control form-control-sm" type="search" name="q" value="{{ q }}" required style="width: 18rem" aria-label="Search again">
+    <button class="btn btn-sm btn-outline-secondary ms-1">Search</button>
+  </form>
+</div>
+
+{% if result.total == 0 %}
+<div class="alert alert-warning">
+  <i class="bi bi-question-circle"></i>
+  Nothing matched <strong>{{ q }}</strong>. Try a username, the IP address, a MAC
+  (any notation), an ONU name such as <code>pon1:44</code>, a serial number or a PON.
+</div>
+{% endif %}
+
+{# ---------------------------------------------------------------- users #}
+{% if result.users %}
+<div class="card mb-4">
+  <div class="card-header py-2 d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-people"></i> PPPoE users</strong>
+    <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ result.users | length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>User</th><th>Router</th><th>IP</th><th>Router / ONU MAC</th><th>Vendor</th>
+          <th>ONU</th><th>PON</th><th class="text-end">Rx power</th><th>Uptime</th><th>Link</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in result.users %}
+        <tr>
+          <td>
+            <a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}" class="fw-semibold">
+              {{ u.name }}
+            </a>
+            {% if u.service %}<div class="small text-secondary">{{ u.service }}</div>{% endif %}
+          </td>
+          <td class="small">{{ u.router_name }}</td>
+          <td class="small font-monospace">{{ u.address or '-' }}</td>
+          <td class="small font-monospace">
+            {{ u.caller_id or '-' }}
+            {% if u.onu and u.onu.mac %}<div class="text-secondary">ONU {{ u.onu.mac }}</div>{% endif %}
+          </td>
+          <td class="small">
+            {{ u.caller_vendor or '-' }}
+            {% if u.onu_vendor %}<div class="text-secondary">{{ u.onu_vendor }}</div>{% endif %}
+          </td>
+          <td class="small">
+            {% if u.onu %}
+              <a href="/onu?olt={{ u.onu_olt_name | urlencode }}&ifindex={{ u.onu_ifindex }}">{{ u.onu.if_name or u.onu_name }}</a>
+              {% set state = u.onu.oper_status %}
+              {% if state == 1 %}<span class="badge bg-success-subtle text-success-emphasis">up</span>
+              {% elif state == 2 %}<span class="badge bg-danger-subtle text-danger-emphasis">down</span>{% endif %}
+            {% elif u.onu_name %}
+              <span class="text-secondary">{{ u.onu_name }}</span>
+            {% else %}-{% endif %}
+          </td>
+          <td class="small">
+            {% if u.onu_olt_name and u.onu_pon is not none %}
+              <a href="/pon?olt={{ u.onu_olt_name | urlencode }}&pon={{ u.onu_pon }}">{{ u.onu_olt_name }} PON{{ u.onu_pon }}</a>
+            {% elif u.onu_olt_name %}<span class="text-secondary">{{ u.onu_olt_name }}</span>{% else %}-{% endif %}
+          </td>
+          <td class="text-end small">{{ u.rx_power_dbm | dbm if u.rx_power_dbm is not none else '-' }}</td>
+          <td class="small text-secondary">{{ u.uptime_text or '-' }}</td>
+          <td>
+            {% if u.match_method %}
+              <span class="badge bg-{{ 'success' if u.match_method != 'pon' else 'info' }}-subtle text-{{ 'success' if u.match_method != 'pon' else 'info' }}-emphasis">{{ u.match_method }}</span>
+            {% else %}<span class="badge bg-warning text-dark">not linked</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ----------------------------------------------------------------- onus #}
+{% if result.onus %}
+<div class="card mb-4">
+  <div class="card-header py-2 d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-hdd-network"></i> ONUs</strong>
+    <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ result.onus | length }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ONU</th><th>OLT / PON</th><th>MAC</th><th>Vendor</th><th>Model / serial</th>
+          <th>State</th><th class="text-end">Rx / Tx</th><th>PPPoE users on this PON</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for o in result.onus %}
+        <tr>
+          <td>
+            <a href="/onu?olt={{ o.olt_name | urlencode }}&ifindex={{ o.ifindex }}" class="fw-semibold">{{ o.if_name or o.if_descr }}</a>
+          </td>
+          <td class="small">
+            <a href="/pon?olt={{ o.olt_name | urlencode }}&pon={{ o.pon }}">{{ o.olt_name }} &middot; PON{{ o.pon }}</a>
+          </td>
+          <td class="small font-monospace">{{ o.mac or '-' }}</td>
+          <td class="small">{{ o.mac_vendor or '-' }}</td>
+          <td class="small">
+            {{ o.model or o.onu_type or '-' }}
+            {% if o.serial %}<div class="text-secondary font-monospace">{{ o.serial }}</div>{% endif %}
+          </td>
+          <td>
+            {% if o.oper_status == 1 %}<span class="badge bg-success-subtle text-success-emphasis">up</span>
+            {% elif o.oper_status == 2 %}<span class="badge bg-danger-subtle text-danger-emphasis">down</span>
+            {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis">unknown</span>{% endif %}
+            {% if o.last_down_reason %}<div class="small text-danger">{{ o.last_down_reason }}</div>{% endif %}
+          </td>
+          <td class="text-end small">
+            {{ o.rx_power_dbm | dbm if o.rx_power_dbm is not none else '-' }}
+            <span class="text-secondary">/</span>
+            {{ o.tx_power_dbm | dbm if o.tx_power_dbm is not none else '-' }}
+          </td>
+          <td class="small">
+            {% if o.pon_users %}
+              {% for u in o.pon_users[:4] %}
+                <a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}">{{ u.name }}</a>{% if not loop.last %}, {% endif %}
+              {% endfor %}
+              {% if o.pon_users | length > 4 %}<span class="text-secondary">+{{ (o.pon_users | length) - 4 }} more</span>{% endif %}
+            {% else %}-{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ----------------------------------------------------------------- pons #}
+{% if result.ports %}
+<div class="card mb-4">
+  <div class="card-header py-2"><strong><i class="bi bi-diagram-3"></i> PON ports</strong></div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr><th>OLT / port</th><th>State</th><th class="text-end">SFP Rx / Tx</th><th>Users linked at PON level</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for p in result.ports %}
+        <tr>
+          <td><a href="/pon?olt={{ p.olt_name | urlencode }}&pon={{ p.pon }}" class="fw-semibold">{{ p.olt_name }} &middot; {{ p.if_name }}</a></td>
+          <td>
+            {% if p.oper_status == 1 %}<span class="badge bg-success-subtle text-success-emphasis">up</span>
+            {% elif p.oper_status == 2 %}<span class="badge bg-danger-subtle text-danger-emphasis">down</span>
+            {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis">unknown</span>{% endif %}
+          </td>
+          <td class="text-end small">
+            {{ p.sfp_rx_power_dbm | dbm if p.sfp_rx_power_dbm is not none else '-' }}
+            <span class="text-secondary">/</span>
+            {{ p.sfp_tx_power_dbm | dbm if p.sfp_tx_power_dbm is not none else '-' }}
+          </td>
+          <td class="small">
+            {% for u in p.pon_users[:6] %}
+              <a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}">{{ u.name }}</a>{% if not loop.last %}, {% endif %}
+            {% else %}<span class="text-secondary">none</span>{% endfor %}
+            {% if p.pon_users | length > 6 %}<span class="text-secondary">+{{ (p.pon_users | length) - 6 }} more</span>{% endif %}
+          </td>
+          <td><a class="btn btn-sm btn-outline-secondary py-0" href="/pon?olt={{ p.olt_name | urlencode }}&pon={{ p.pon }}">Open</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}

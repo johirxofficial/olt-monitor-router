@@ -1,0 +1,23 @@
+[Unit]
+# System-wide copy of the unit.  The installer prefers a per-user unit
+# (~/.config/systemd/user/olt-monitor-router.service) because it needs no root.
+# To install this one, edit the paths below, then:
+#   sudo cp deploy/olt-monitor-router.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now olt-monitor-router
+Description=OLT + Router Monitor (MySQL)
+After=network-online.target mysql.service
+Wants=network-online.target mysql.service
+
+[Service]
+Type=simple
+User=desktop
+WorkingDirectory=/home/desktop/spacex/olt-monitor-router
+EnvironmentFile=-/home/desktop/spacex/olt-monitor-router/.env
+ExecStart=/home/desktop/spacex/olt-monitor-router/.venv/bin/python /home/desktop/spacex/olt-monitor-router/run.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

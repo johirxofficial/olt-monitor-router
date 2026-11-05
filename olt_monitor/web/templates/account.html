@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Account - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-8 col-xl-7">
+
+    <h5 class="mb-3"><i class="bi bi-person-gear"></i> My account</h5>
+
+    {% if msg %}<div class="alert alert-success py-2 small">{{ msg }}</div>{% endif %}
+    {% if err %}<div class="alert alert-danger py-2 small">{{ err }}</div>{% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Profile</span>
+        <span class="badge {{ 'bg-danger' if user.role=='superadmin' else ('bg-primary' if user.role=='manager' else 'bg-secondary') }}">{{ user.role_label }}</span>
+      </div>
+      <div class="card-body">
+        <form method="post" action="/account">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label small">Username</label>
+              <input class="form-control" value="{{ user.username }}" disabled>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small" for="display_name">Display name</label>
+              <input class="form-control" id="display_name" name="display_name" value="{{ user.display_name or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small" for="email">Email (optional)</label>
+              <input class="form-control" id="email" name="email" type="email" value="{{ user.email or '' }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small">Last login</label>
+              <input class="form-control" value="{{ user.last_login_at | local if user.last_login_at else 'this session' }}" disabled>
+            </div>
+          </div>
+
+          <hr class="my-4">
+          <h6 class="text-uppercase text-secondary small">Change password</h6>
+          <p class="small text-secondary">Leave these blank to keep your current password.</p>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small" for="current_password">Current password</label>
+              <input class="form-control" id="current_password" name="current_password" type="password" autocomplete="current-password">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small" for="new_password">New password</label>
+              <input class="form-control" id="new_password" name="new_password" type="password" autocomplete="new-password" minlength="8">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small" for="new_password2">Repeat new password</label>
+              <input class="form-control" id="new_password2" name="new_password2" type="password" autocomplete="new-password" minlength="8">
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <button class="btn btn-primary"><i class="bi bi-check2"></i> Save changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Session</div>
+      <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="small text-secondary">
+          Signed in as <strong>{{ user.username }}</strong> ({{ user.role_label }}).
+          Sessions last 7 days and stop working immediately if the account is disabled.
+        </div>
+        <form method="post" action="/logout">
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-right"></i> Log out</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

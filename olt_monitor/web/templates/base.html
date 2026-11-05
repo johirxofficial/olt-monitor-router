@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ app_title }}{% endblock %}</title>
+  {% if site and site.site_name %}<meta name="description" content="{{ tagline or site.site_name }}">{% endif %}
+  <script>
+    // Apply the saved theme before the first paint (no flash of the wrong mode).
+    (function () {
+      try {
+        var saved = localStorage.getItem("olt-theme");
+        if (!saved) {
+          saved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.setAttribute("data-bs-theme", saved);
+      } catch (e) { /* private mode */ }
+    })();
+  </script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="/static/css/style.css?v={{ version }}" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+</head>
+<body data-refresh="{{ refresh_seconds }}">
+<nav class="navbar navbar-expand-xxl app-navbar sticky-top mb-4">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">
+      <span class="brand-mark"><i class="bi bi-broadcast-pin"></i></span>
+      <span>{{ app_title }}</span>
+      {% if tagline %}<span class="d-none d-xxl-inline small fw-normal ms-2" style="color: var(--olt-muted)">{{ tagline }}</span>{% endif %}
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="nav">
+      <ul class="navbar-nav me-auto gap-1">
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='dashboard' }}" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='olts' }}" href="/olts"><i class="bi bi-hdd-rack"></i> OLTs</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='pons' }}" href="/pons"><i class="bi bi-diagram-3"></i> PONs</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='onus' }}" href="/onus"><i class="bi bi-hdd-network"></i> ONUs</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='users' }}" href="/users"><i class="bi bi-people"></i> Users</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='routers' }}" href="/routers"><i class="bi bi-router"></i> Routers</a></li>
+        <li class="nav-item"><a class="nav-link {{ 'active' if active=='alerts' }}" href="/alerts"><i class="bi bi-exclamation-triangle"></i> Alerts</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle {{ 'active' if active in ('ports','devices','tools','about') }}" href="#" data-bs-toggle="dropdown" role="button">
+            <i class="bi bi-grid-3x3-gap"></i> More
+          </a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item {{ 'active' if active=='ports' }}" href="/ports"><i class="bi bi-ethernet"></i> Ports</a></li>
+            {% if can_manage %}
+            <li><a class="dropdown-item {{ 'active' if active=='devices' }}" href="/devices"><i class="bi bi-hdd-stack"></i> Devices</a></li>
+            {% endif %}
+            {% if permissions.perm_tools %}
+            <li><a class="dropdown-item {{ 'active' if active=='tools' }}" href="/tools"><i class="bi bi-terminal"></i> SNMP Tools</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item {{ 'active' if active=='about' }}" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+          </ul>
+        </li>
+      </ul>
+
+      <ul class="navbar-nav align-items-xxl-center gap-1">
+        {% if user %}
+        <li class="nav-item me-xxl-1">
+          <form class="d-flex" method="get" action="/search" role="search">
+            <input class="form-control form-control-sm search-box"
+                   type="search" name="q" value="{{ q or '' }}" required
+                   placeholder="User, MAC, IP, ONU…"
+                   aria-label="Quick search">
+            <button class="btn btn-sm btn-icon ms-1" title="Quick search">
+              <i class="bi bi-search"></i>
+            </button>
+          </form>
+        </li>
+        {% endif %}
+        <li class="nav-item d-flex align-items-center">
+          <button class="btn-icon" id="theme-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
+            <i class="bi bi-moon-stars" id="theme-icon"></i>
+          </button>
+        </li>
+        {% if user %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button">
+            <i class="bi bi-person-circle"></i> {{ user.display_name or user.username }}
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><span class="dropdown-item-text small" style="color: var(--olt-muted)">{{ user.username }} &middot; {{ user.role_label }}</span></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item {{ 'active' if active=='account' }}" href="/account"><i class="bi bi-person-gear"></i> Account</a></li>
+            {% if permissions.perm_settings or permissions.perm_users or permissions.perm_developer %}
+            <li><hr class="dropdown-divider"></li>
+            {% if permissions.perm_settings %}
+            <li><a class="dropdown-item {{ 'active' if active=='settings' }}" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+            {% endif %}
+            {% if permissions.perm_users %}
+            <li><a class="dropdown-item {{ 'active' if active=='admin-users' }}" href="/admin/users"><i class="bi bi-people"></i> Web users</a></li>
+            {% endif %}
+            {% if permissions.perm_developer %}
+            <li><a class="dropdown-item {{ 'active' if active=='developer' }}" href="/developer"><i class="bi bi-code-slash"></i> Developer</a></li>
+            {% endif %}
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+            <li>
+              <form method="post" action="/logout" class="px-2 py-1">
+                <button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-box-arrow-right"></i> Log out</button>
+              </form>
+            </li>
+          </ul>
+        </li>
+        {% endif %}
+        <li class="nav-item d-none d-xxl-flex align-items-center nav-clock">
+          <span class="navbar-text small ms-2" id="clock" style="color: var(--olt-muted)"></span>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="app-main container-fluid px-4">
+  {% block content %}{% endblock %}
+</main>
+
+{# Modals are rendered as direct children of <body>. Bootstrap expects this,
+   and it keeps them out of any <main> stacking context. #}
+{% block modals %}{% endblock %}
+
+<footer class="app-footer container-fluid d-flex flex-wrap justify-content-between gap-2">
+  <span>
+    {{ site.footer_text or app_title }} &middot; v{{ version }}
+    {% if user %} &middot; signed in as <strong>{{ user.username }}</strong>{% endif %}
+  </span>
+  <span>
+    <a href="/about">About</a>
+    {% if site.support_email %} &middot; <a href="mailto:{{ site.support_email }}">{{ site.support_email }}</a>{% endif %}
+    &middot; auto-refresh every {{ refresh_seconds }}s
+  </span>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/static/js/app.js?v={{ version }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}PONs - {{ app_title }}{% endblock %}
+{% block content %}
+
+{% set active_ports = rows | selectattr('oper_status', 'equalto', 1) | list | length %}
+{% set tot_onus = rows | sum(attribute='onus') %}
+{% set up_onus = rows | sum(attribute='up') %}
+{% set tot_users = rows | sum(attribute='users') %}
+{# some PON rows have no rate yet (a new port, or a vendor that does not
+   report rates) - drop the None values instead of failing the whole page #}
+{% set tot_down_bps = rows | map(attribute='onu_out_bps') | reject('none') | sum %}
+{% set tot_up_bps = rows | map(attribute='onu_in_bps') | reject('none') | sum %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-diagram-3"></i> PON ports
+    <span class="text-secondary fs-6">
+      {{ active_ports }} of {{ rows | length }} up
+      {% if olt %} &middot; {{ olt }}{% endif %}
+    </span>
+  </h5>
+  {% if not optical_configured %}
+    <a class="badge bg-warning text-dark text-decoration-none" href="/settings">
+      <i class="bi bi-info-circle"></i> dBm needs optical OIDs - click for setup
+    </a>
+  {% endif %}
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3 col-xl">
+    <div class="summary-tile ok">
+      <div class="n">{{ active_ports }}/{{ rows | length }}</div>
+      <div class="t">PON ports up</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="summary-tile ok">
+      <div class="n">{{ up_onus }}/{{ tot_onus }}</div>
+      <div class="t">ONU online / registered</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="summary-tile info">
+      <div class="n">{{ tot_users }}</div>
+      <div class="t">PPPoE subscribers</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="summary-tile">
+      <div class="n">{{ tot_down_bps | bps }}</div>
+      <div class="t">Download (ONU sum)</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="summary-tile">
+      <div class="n">{{ tot_up_bps | bps }}</div>
+      <div class="t">Upload (ONU sum)</div>
+    </div>
+  </div>
+</div>
+
+{% if olt_names | length > 1 or olt %}
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-auto">
+    <label class="form-label small mb-0">OLT</label>
+    <select class="form-select form-select-sm" name="olt">
+      <option value="">all</option>
+      {% for name in olt_names %}<option value="{{ name }}" {{ 'selected' if olt == name }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Filter</button>
+    <a class="btn btn-sm btn-outline-secondary" href="/pons">Reset</a>
+  </div>
+</form>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        {% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
+        <th>PON</th>
+        <th>State</th>
+        <th>ONU capacity</th>
+        <th class="text-end">Online / down</th>
+        <th class="text-end">PPPoE</th>
+        <th class="text-end">Download</th>
+        <th class="text-end">Upload</th>
+        <th class="text-end">SFP TX</th>
+        <th class="text-end">SFP RX</th>
+        <th class="text-end">SFP temp</th>
+        <th class="text-end">ONU rx avg / worst</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ row.olt_name }}</td>{% endif %}
+        <td>
+          <strong class="pon-name" title="{{ row.if_name }}">{{ row.if_name }}</strong>
+          <div class="small text-secondary">
+            pon {{ row.pon }}
+            {% if row.pon_type %}&middot; {{ row.pon_type | upper }}{% endif %}
+          </div>
+        </td>
+        <td>
+          {% if row.oper_status is not none %}
+            <span class="badge state-{{ row.oper_status | state }}">{{ row.oper_status | state }}</span>
+          {% else %}<span class="text-secondary small">n/a</span>{% endif %}
+        </td>
+        <td>
+          <div class="capacity">
+            <div class="small d-flex justify-content-between">
+              <span>{{ row.onus }}/{{ row.max_onus }}</span>
+              <span class="text-secondary">{{ row.util_pct if row.util_pct is not none else 0 }}%</span>
+            </div>
+            <div class="bar">
+              <div class="up" style="width: {{ row.up_pct if row.up_pct is not none else 0 }}%"></div>
+              <div class="down" style="width: {{ (100 - row.up_pct) if row.up_pct is not none and row.up > 0 else 0 }}%"></div>
+            </div>
+            <div class="small text-secondary">{{ row.up }} online &middot; {{ row.down }} down</div>
+          </div>
+        </td>
+        <td class="text-end">
+          <span class="text-success">{{ row.up }}</span> /
+          <span class="{{ 'text-danger fw-bold' if row.down }}">{{ row.down }}</span>
+          {% if row.weak %}<div class="small power-weak">{{ row.weak }} weak rx</div>{% endif %}
+        </td>
+        <td class="text-end">{{ row.users }}</td>
+        <td class="text-end small">{{ row.onu_out_bps | bps }}</td>
+        <td class="text-end small">{{ row.onu_in_bps | bps }}</td>
+        <td class="text-end small">{{ row.sfp_tx_power_dbm | dbm }}</td>
+        <td class="text-end small {{ 'power-weak' if row.sfp_rx_power_dbm is not none and row.sfp_rx_power_dbm <= -27 }}">
+          {{ row.sfp_rx_power_dbm | dbm }}
+        </td>
+        <td class="text-end small">
+          {{ (row.sfp_temperature_c | round(1)) ~ ' °C' if row.sfp_temperature_c is not none else '-' }}
+        </td>
+        <td class="text-end small">
+          <span class="{{ 'power-weak' if row.rx_avg is not none and row.rx_avg <= rx_low }}">{{ row.rx_avg | dbm }}</span>
+          /
+          <span class="{{ 'power-weak' if row.rx_min is not none and row.rx_min <= rx_low }}">{{ row.rx_min | dbm }}</span>
+        </td>
+        <td class="text-end">
+          {% if row.pon is not none %}
+            <a class="btn btn-sm btn-outline-primary py-0 px-2" href="/pon?olt={{ row.olt_name | urlencode }}&pon={{ row.pon }}">Open</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="13" class="text-secondary">No PON ports found yet. Check the OLT settings on the <a href="/devices">Devices</a> page.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="small text-secondary">
+  <i class="bi bi-info-circle"></i>
+  SFP TX/RX and module temperature come from the Telnet CLI
+  (<code>show epon optical-transceiver-diagnosis</code>); the ONU dBm columns come from SNMP.
+</p>
+
+{% endblock %}

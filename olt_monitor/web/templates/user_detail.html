@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ user.name }} - {{ app_title }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small mb-2">
+    <li class="breadcrumb-item"><a href="/users">Users</a></li>
+    <li class="breadcrumb-item"><a href="/users?router={{ user.router_name }}">{{ user.router_name }}</a></li>
+    <li class="breadcrumb-item active">{{ user.name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-person-badge"></i> {{ user.name }}
+    <span class="text-secondary fs-6">{{ user.service or 'pppoe' }} &middot; {{ user.router_name }}</span>
+    {% if user.match_method == 'pon' %}<span class="badge bg-info-subtle text-info-emphasis">linked: PON {{ user.onu_pon }}</span>
+    {% elif user.match_method %}<span class="badge bg-success-subtle text-success-emphasis">linked: {{ user.match_method }}</span>
+    {% else %}<span class="badge bg-warning text-dark">not linked to an ONU</span>{% endif %}
+  </h5>
+  <a class="btn btn-sm btn-outline-secondary" href="/users?q={{ user.name }}">Find in user list</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Rx power</div>
+      <div class="stat-value {{ 'power-weak' if user.rx_power_dbm is not none and user.rx_power_dbm <= rx_low }}">{{ user.rx_power_dbm | dbm }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Tx power</div>
+      <div class="stat-value">{{ user.tx_power_dbm | dbm }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Uptime</div>
+      <div class="stat-value" style="font-size:1.3rem">{{ user.uptime_seconds | uptime }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Distance</div>
+      <div class="stat-value">{{ user.distance_m if user.distance_m is not none else 'n/a' }}{{ ' m' if user.distance_m is not none }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Downloaded</div>
+      <div class="stat-value" style="font-size:1.3rem">{{ user.bytes_in | bytes }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Uploaded</div>
+      <div class="stat-value" style="font-size:1.3rem">{{ user.bytes_out | bytes }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Session details (from the router)</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-40">Username</th><td><strong>{{ user.name }}</strong></td></tr>
+            <tr><th>Router</th><td>{{ user.router_name }}</td></tr>
+            <tr><th>Service</th><td>{{ user.service or '-' }}</td></tr>
+            <tr><th>Remote IP</th><td><code>{{ user.address or '-' }}</code></td></tr>
+            <tr>
+              <th>MAC (caller-id)</th>
+              <td>
+                <code>{{ user.caller_id or '-' }}</code>
+                {% if caller_vendor %}<span class="badge bg-light text-dark border">{{ caller_vendor }}</span>{% endif %}
+              </td>
+            </tr>
+            <tr><th>Session id</th><td><code>{{ user.session_id or '-' }}</code></td></tr>
+            <tr>
+              <th>MikroTik iface</th>
+              <td>
+                {% if user.access_iface %}
+                  <code>{{ user.access_iface }}</code>
+                  {% if user.access_source == 'vlan' %}<span class="badge bg-success-subtle text-success-emphasis">from OLT VLAN</span>
+                  {% elif user.access_source == 'server' %}<span class="badge bg-info-subtle text-info-emphasis">PPPoE server</span>
+                  {% elif user.access_source == 'pppoe' %}<span class="badge bg-secondary-subtle text-secondary-emphasis">dynamic PPPoE</span>{% endif %}
+                {% else %}-{% endif %}
+              </td>
+            </tr>
+            <tr><th>PPPoE interface</th><td><code>{{ user.iface or '-' }}</code></td></tr>
+            <tr><th>Service VLAN</th><td>{{ user.olt_vlan if user.olt_vlan else '-' }}</td></tr>
+            <tr><th>Uptime</th><td>{{ user.uptime_seconds | uptime }} <span class="text-secondary small">({{ user.uptime_text or '' }})</span></td></tr>
+            <tr><th>Traffic in / out</th><td>{{ user.bytes_in | bytes }} / {{ user.bytes_out | bytes }}</td></tr>
+            <tr><th>Last poll</th><td class="small text-secondary">{{ user.updated_at | local }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span>ONU behind this user</span>
+        {% if onu %}<a class="small" href="/onu?olt={{ onu.olt_name | urlencode }}&ifindex={{ onu.ifindex }}">open ONU page</a>
+        {% elif pon %}<a class="small" href="/pon?olt={{ pon.olt_name | urlencode }}&pon={{ pon.pon }}">open PON page</a>{% endif %}
+      </div>
+      <div class="card-body">
+        {% if onu %}
+          <table class="table table-sm mb-0">
+            <tbody>
+              <tr><th class="w-40">ONU</th><td><a href="/onu?olt={{ onu.olt_name }}&ifindex={{ onu.ifindex }}">{{ onu.if_name }}</a></td></tr>
+              <tr><th>OLT</th><td>{{ onu.olt_name }}</td></tr>
+              <tr><th>PON / id</th><td>
+                {% if onu.pon is not none %}<a href="/pon?olt={{ onu.olt_name }}&pon={{ onu.pon }}">PON {{ onu.pon }}</a>{% else %}-{% endif %}
+                / {{ onu.onu_id }}</td></tr>
+              <tr><th>Matched by</th><td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ user.match_method or '-' }}</span></td></tr>
+              <tr><th>ONU MAC</th><td>
+                <code>{{ onu.mac or '-' }}</code>
+                {% if onu_vendor %}<span class="badge bg-light text-dark border">{{ onu_vendor }}</span>{% endif %}
+              </td></tr>
+              <tr><th>Rx / Tx dBm</th><td>{{ onu.rx_power_dbm | dbm }} / {{ onu.tx_power_dbm | dbm }}</td></tr>
+              <tr><th>State</th><td><span class="badge state-{{ onu.oper_status | state }}">{{ onu.oper_status | state }}</span></td></tr>
+              <tr><th>Distance</th><td>{{ onu.distance_m if onu.distance_m is not none else 'n/a' }}{{ ' m' if onu.distance_m is not none }}</td></tr>
+              <tr><th>Temperature</th><td>{{ onu.temperature_c if onu.temperature_c is not none else 'n/a' }}</td></tr>
+            </tbody>
+          </table>
+          <hr class="my-2">
+          <div class="small text-secondary mb-1">ONU optical power - last 24h</div>
+          <div class="chart-box" style="height:220px">
+            <canvas id="onu-chart" data-olt="{{ onu.olt_name }}" data-ifindex="{{ onu.ifindex }}"></canvas>
+          </div>
+        {% else %}
+          {% if pon %}
+          <div class="alert alert-info py-2 small">
+            <i class="bi bi-info-circle"></i>
+            This OLT's forwarding table only reports the <strong>PON</strong>, not the individual
+            ONU (Photon / BDPON / BTPON firmware). The subscriber is therefore linked to
+            <a href="/pon?olt={{ pon.olt_name | urlencode }}&pon={{ pon.pon }}">{{ pon.olt_name }} &middot; PON {{ pon.pon }}</a>,
+            which is the strongest association the device exposes.
+          </div>
+          <table class="table table-sm mb-0">
+            <tbody>
+              <tr><th class="w-40">OLT</th><td>{{ pon.olt_name }}</td></tr>
+              <tr><th>PON</th><td><a href="/pon?olt={{ pon.olt_name | urlencode }}&pon={{ pon.pon }}">{{ pon.if_name or ('pon' ~ pon.pon) }}</a></td></tr>
+              <tr><th>Matched by</th><td><span class="badge bg-info-subtle text-info-emphasis">pon</span></td></tr>
+              <tr><th>Router MAC</th><td>
+                <code>{{ user.caller_id or '-' }}</code>
+                {% if caller_vendor %}<span class="badge bg-light text-dark border">{{ caller_vendor }}</span>{% endif %}
+              </td></tr>
+              <tr><th>ONUs on this PON</th><td>{{ pon.onus }}</td></tr>
+              <tr><th>PPPoE users on this PON</th><td>{{ pon.users }}</td></tr>
+            </tbody>
+          </table>
+          {% else %}
+          <p class="text-secondary mb-2">
+            This session is not linked to an ONU, so there is no optical reading.
+          </p>
+          <ul class="small text-secondary">
+            <li>Check that the OLT is polling and the MAC table is enabled.</li>
+            <li>Matching uses the PPPoE <code>caller-id</code> MAC against the OLT forwarding table (FDB).</li>
+            <li>If the customer's MAC has not sent traffic recently it may not be in the FDB yet.</li>
+            <li>If the OLT only publishes PON-level MACs, the user is linked to the PON instead of an ONU.</li>
+          </ul>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{% if onu %}<script src="/static/js/detail.js?v={{ version }}"></script>{% endif %}
+{% endblock %}

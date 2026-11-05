@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}SNMP tools - {{ app_title }}{% endblock %}
+{% block content %}
+
+<h5 class="mb-3"><i class="bi bi-terminal"></i> SNMP tools</h5>
+
+<div class="alert alert-secondary small">
+  Live SNMP query against the selected OLT. Use this to hunt down the optical OIDs, or run
+  <code>python3 tools/discover_olt.py --autoconfig</code> to let the detector fill them in automatically.
+</div>
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  {% if olt_names | length > 1 %}
+  <div class="col-auto">
+    <label class="form-label small mb-0">OLT</label>
+    <select class="form-select form-select-sm" name="olt">
+      {% for name in olt_names %}<option value="{{ name }}" {{ 'selected' if olt == name }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="col-md-5">
+    <label class="form-label small mb-0">OID</label>
+    <input class="form-control form-control-sm" name="oid" value="{{ oid }}"
+           placeholder="1.3.6.1.2.1.1.1.0  or  1.3.6.1.4.1.37950">
+  </div>
+  <div class="col-auto">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="walk" value="1" id="walk" {{ 'checked' if walk }}>
+      <label class="form-check-label small" for="walk">walk the whole subtree</label>
+    </div>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Query</button>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+<div class="mb-2 small text-secondary d-flex flex-wrap gap-2">
+  <span>Quick picks:</span>
+  <a href="/tools?oid=1.3.6.1.2.1.1.1.0">sysDescr</a>
+  <a href="/tools?oid=1.3.6.1.2.1.1.3.0">sysUpTime</a>
+  <a href="/tools?oid=1.3.6.1.2.1.2.2.1.2&walk=1">ifDescr (walk)</a>
+  <a href="/tools?oid=1.3.6.1.2.1.31.1.1.1.1&walk=1">ifName (walk)</a>
+  <a href="/tools?oid=1.3.6.1.2.1.17.4.3.1.2&walk=1">bridge MAC table (walk)</a>
+  <a href="/tools?oid=1.3.6.1.4.1.37950&walk=1">VSOL enterprise (walk)</a>
+</div>
+
+{% if result %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover">
+    <thead class="table-light"><tr><th>OID</th><th>Type</th><th>Value</th></tr></thead>
+    <tbody>
+    {% for row in result %}
+      <tr>
+        <td class="small"><code>{{ row.oid }}</code></td>
+        <td class="small text-secondary">{{ row.tag }}</td>
+        <td>{{ row.value if not row.exception else '(no such object)' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="small text-secondary">{{ result | length }} varbind(s) returned.</p>
+{% elif oid and not error %}
+  <div class="alert alert-info">No data returned for that OID.</div>
+{% endif %}
+
+{% endblock %}

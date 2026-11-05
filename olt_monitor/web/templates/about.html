@@ -1,0 +1,101 @@
+{% extends "public_base.html" %}
+{% block title %}About - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="row justify-content-center">
+  <div class="col-lg-10 col-xl-9">
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4 p-md-5">
+        <div class="d-flex flex-wrap gap-3 align-items-start">
+          <div class="display-5 text-primary"><i class="bi bi-broadcast-pin"></i></div>
+          <div class="flex-grow-1 min-w-0">
+            <h3 class="mb-1">{{ app_title }}</h3>
+            <p class="text-secondary mb-2">{{ tagline or "EPON / GPON OLT + MikroTik monitoring, in one place" }}</p>
+            <div class="small text-secondary">
+              Version <strong>{{ version }}</strong> &middot; Python / FastAPI + MySQL &middot;
+              running on Linux
+            </div>
+          </div>
+          {% if not user and not setup_required %}
+          <a class="btn btn-primary" href="/login"><i class="bi bi-box-arrow-in-right"></i> Sign in</a>
+          {% elif user %}
+          <a class="btn btn-primary" href="/"><i class="bi bi-speedometer2"></i> Open dashboard</a>
+          {% endif %}
+        </div>
+
+        <hr class="my-4">
+
+        <p class="lead fs-6">
+          A self-hosted network monitor for <strong>EPON / GPON OLTs</strong> and
+          <strong>MikroTik RouterOS</strong> routers. It polls every device over SNMP or the
+          RouterOS API, stores the current state and history in MySQL, correlates PPPoE
+          subscribers with the ONU they are connected to, and shows everything in a single
+          web dashboard with role-based access.
+        </p>
+
+        {% if site.about_text %}
+        <div class="about-extra mb-4">
+          {{ site.about_text | safe }}
+        </div>
+        {% endif %}
+
+        <h6 class="text-uppercase text-secondary small mt-4">What it does</h6>
+        <div class="row g-3 mt-1">
+          <div class="col-md-6">
+            <ul class="small mb-0">
+              <li>OLT inventory: ports, PON ports, ONUs, VLANs, uplinks</li>
+              <li>Per-ONU optical power (Rx / Tx / OLT Rx), temperature, distance</li>
+              <li>ONU state changes and offline detection</li>
+              <li>PoE / PPPoE user list per router with live traffic counters</li>
+            </ul>
+          </div>
+          <div class="col-md-6">
+            <ul class="small mb-0">
+              <li>Automatic PPPoE user &harr; ONU correlation (FDB, MAC, ARP, templates)</li>
+              <li>Alert engine: weak optics, dead PONs, CPU / RAM / temperature</li>
+              <li>History graphs, SQL backup / restore from the browser</li>
+              <li>Multi-vendor: VSOL, BDCOM, C-Data, Huawei / ZTE-style profiles</li>
+            </ul>
+          </div>
+        </div>
+
+        <h6 class="text-uppercase text-secondary small mt-4">Built with</h6>
+        <p class="small mb-0">
+          Python 3.10+ &middot; FastAPI &middot; Jinja2 &middot; MySQL 8 &middot; PyMySQL &middot;
+          Bootstrap 5 &middot; Chart.js &middot; a small stdlib SNMP client and a native
+          RouterOS API client &middot; systemd
+        </p>
+
+        <h6 class="text-uppercase text-secondary small mt-4">Roles</h6>
+        <div class="row g-2 mt-1">
+          {% for role in roles %}
+          <div class="col-md-4">
+            <div class="border rounded p-2 h-100">
+              <div class="fw-semibold small">{{ role.name }}</div>
+              <div class="text-secondary" style="font-size:.78rem">{{ role.hint }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <h6 class="text-uppercase text-secondary small mt-4">Credits</h6>
+        <p class="small mb-0">
+          Designed and developed by <strong>Johirxofficial</strong>, with assistance from an
+          AI agent. Self-hosted, no cloud dependency, no telemetry &mdash; all data stays in
+          your own MySQL database.
+        </p>
+      </div>
+    </div>
+
+    <div class="text-center small text-secondary mb-4">
+      {% if not user and not setup_required %}
+      <a href="/login">Sign in</a> to reach the monitoring pages.
+      {% endif %}
+      {% if setup_required %}<a href="/setup">First-time setup</a>{% endif %}
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}

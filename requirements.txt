@@ -1,0 +1,13 @@
+# Python 3.10 or newer is required (the web layer uses modern type syntax).
+#
+# Core web stack + MySQL driver.  Everything else is Python standard library.
+fastapi>=0.110,<1.0
+uvicorn>=0.27
+jinja2>=3.1
+pyyaml>=6.0
+python-dotenv>=1.0
+# FastAPI needs this for HTML form posts (login, settings, uploads)
+python-multipart>=0.0.9
+pymysql>=1.1
+# needed by MySQL 8 caching_sha2_password authentication
+cryptography>=42

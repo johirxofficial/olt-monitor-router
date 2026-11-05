@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}OLTs - {{ app_title }}{% endblock %}
+{% block content %}
+
+{% set colours = {'success': '#198754', 'warning': '#ffc107', 'orange': '#fd7e14', 'danger': '#dc3545'} %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-hdd-rack"></i> OLT overview
+    <span class="text-secondary fs-6">
+      {{ overview.totals.online }}/{{ overview.totals.olts }} online &middot;
+      {{ overview.totals.onus_up }}/{{ overview.totals.onus }} ONU online &middot;
+      {{ overview.totals.users }} PPPoE users
+    </span>
+  </h5>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="/devices"><i class="bi bi-sliders"></i> Manage devices</a>
+    <button class="btn btn-sm btn-outline-primary" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+</div>
+
+{% if not overview.olts %}
+  <div class="alert alert-info">
+    No OLT is registered yet. <a href="/devices">Add one on the Devices page</a>.
+  </div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  {% for olt in overview.olts %}
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm h-100 {{ 'border-danger' if olt.health_grade == 'danger' else '' }}">
+      <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div class="min-w-0">
+            <h5 class="mb-1 text-truncate">
+              {% if olt.online %}<span class="badge bg-success">online</span>
+              {% elif olt.pending %}<span class="badge bg-secondary">waiting</span>
+              {% elif not olt.enabled %}<span class="badge bg-secondary">disabled</span>
+              {% else %}<span class="badge bg-danger">offline</span>{% endif %}
+              {{ olt.name }}
+              {% if not olt.enabled %}<span class="badge bg-secondary-subtle text-secondary-emphasis">polling off</span>{% endif %}
+            </h5>
+            <div class="small text-secondary">
+              <i class="bi bi-geo-alt"></i> {{ olt.branch or 'no branch' }}
+              {% if olt.site %} &middot; {{ olt.site }}{% endif %}
+              {% if olt.rack %} &middot; {{ olt.rack }}{% endif %}
+            </div>
+            <div class="small">
+              <span class="badge bg-dark">{{ olt.brand_label }}</span>
+              <span class="badge bg-secondary">{{ olt.pon_type | upper }}</span>
+              {% if olt.model %}<span class="badge bg-light text-dark">{{ olt.model }}</span>{% endif %}
+              {% if olt.firmware %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ olt.firmware }}</span>{% endif %}
+              <span class="text-secondary">{{ olt.host }}</span>
+            </div>
+          </div>
+
+          <div class="text-center flex-shrink-0">
+            <div class="health-gauge" style="--score: {{ olt.health }}; --gauge: {{ colours.get(olt.health_grade, '#6c757d') }}">
+              <span>{{ olt.health }}</span>
+            </div>
+            <div class="small text-secondary mt-1">{{ olt.health_label }}</div>
+          </div>
+        </div>
+
+        {% if olt.error %}
+          <div class="alert alert-danger py-1 px-2 small mt-3 mb-2">
+            <i class="bi bi-exclamation-octagon"></i> {{ olt.error }}
+          </div>
+        {% elif olt.health_reasons %}
+          <div class="small text-warning-emphasis mt-2">
+            <i class="bi bi-info-circle"></i> {{ olt.health_reasons | join(' &middot; ') | safe }}
+          </div>
+        {% endif %}
+
+        {% if olt.pon_type_warning %}
+          <div class="alert alert-warning py-1 px-2 small mt-2 mb-0">
+            <i class="bi bi-exclamation-triangle"></i> {{ olt.pon_type_warning }}
+          </div>
+        {% endif %}
+
+        <div class="row row-cols-2 row-cols-md-3 g-2 mt-3 small">
+          <div class="col"><div class="metric"><div class="label">Uptime</div><div class="value">{{ olt.uptime_text or '-' }}</div></div></div>
+          <div class="col"><div class="metric"><div class="label">CPU</div><div class="value">{{ (olt.cpu_percent | round(1)) ~ '%' if olt.cpu_percent is not none else '-' }}</div></div></div>
+          <div class="col"><div class="metric"><div class="label">Memory</div><div class="value">{{ (olt.memory_percent | round(1)) ~ '%' if olt.memory_percent is not none else '-' }}</div></div></div>
+          <div class="col"><div class="metric"><div class="label">Board temp</div><div class="value">{{ (olt.temperature_c | round(1)) ~ ' °C' if olt.temperature_c is not none else '-' }}</div></div></div>
+          <div class="col"><div class="metric"><div class="label">SNMP RTT</div><div class="value">{{ olt.snmp_rtt_ms ~ ' ms' if olt.snmp_rtt_ms is not none else '-' }}</div></div></div>
+          <div class="col"><div class="metric"><div class="label">ONUs</div><div class="value">{{ olt.onus_up }}/{{ olt.onus_total }}</div></div></div>
+        </div>
+
+        <div class="mt-3">
+          <div class="d-flex justify-content-between small text-secondary">
+            <span>ONU capacity used</span>
+            <span>{{ olt.onus_total }} registered{% if olt.onus_weak %} &middot; <span class="text-danger">{{ olt.onus_weak }} weak</span>{% endif %}</span>
+          </div>
+          <div class="progress" style="height: 6px;">
+            {% set pct = (olt.onus_up / olt.onus_total * 100) | round if olt.onus_total else 0 %}
+            <div class="progress-bar bg-success" style="width: {{ pct }}%"></div>
+            {% if olt.onus_total %}
+            <div class="progress-bar bg-danger" style="width: {{ 100 - pct }}%"></div>
+            {% endif %}
+          </div>
+          <div class="d-flex justify-content-between small text-secondary mt-1">
+            <span>{{ olt.pons_up }}/{{ olt.pons_total }} PON up</span>
+            <span>avg rx {{ olt.rx_avg | dbm }}</span>
+            <span>{{ olt.users }} users</span>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button class="btn btn-sm btn-primary" data-poll="{{ olt.name }}">
+            <i class="bi bi-arrow-repeat"></i> Poll now
+          </button>
+          <a class="btn btn-sm btn-outline-secondary" href="/devices?edit={{ olt.id }}">
+            <i class="bi bi-pencil"></i> Edit
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" href="/pons?olt={{ olt.name | urlencode }}">
+            <i class="bi bi-diagram-3"></i> PONs
+          </a>
+          <button class="btn btn-sm btn-outline-danger ms-auto" data-delete="{{ olt.id }}" data-name="{{ olt.name }}">
+            <i class="bi bi-trash"></i> Delete
+          </button>
+        </div>
+
+        <div class="small text-secondary mt-2">
+          Last poll: {{ olt.last_poll or 'never' }}
+          {% if olt.telnet_ok is not none %}
+            &middot; Telnet:
+            {% if olt.telnet_ok %}<span class="text-success">ok ({{ olt.telnet_ms }} ms)</span>
+            {% else %}<span class="text-danger" title="{{ olt.telnet_error or '' }}">failed</span>{% endif %}
+          {% endif %}
+        </div>
+        {% if olt.telnet_note %}
+          <div class="small text-danger-emphasis">{{ olt.telnet_note }}</div>
+        {% endif %}
+        {% if olt.cdata_note %}
+          <div class="small text-warning-emphasis">{{ olt.cdata_note }}</div>
+        {% endif %}
+        {% if olt.cdata_error %}
+          <div class="small text-danger-emphasis">OLT API: {{ olt.cdata_error }}</div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-table"></i> All OLTs</strong>
+    <span class="small text-secondary">click a name for its PONs</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Health</th><th>Name</th><th>Branch</th><th>Brand / firmware</th>
+          <th>SNMP address</th><th>Status</th><th>ONUs</th><th>PONs</th>
+          <th>CPU</th><th>Mem</th><th>Temp</th><th>RTT</th><th>Last poll</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for olt in overview.olts %}
+        <tr>
+          <td>
+            <span class="badge bg-{{ olt.health_grade if olt.health_grade != 'orange' else 'warning' }}">{{ olt.health }}</span>
+          </td>
+          <td>
+            <a href="/pons?olt={{ olt.name | urlencode }}" class="text-decoration-none fw-semibold">{{ olt.name }}</a>
+            {% if not olt.enabled %}<span class="badge bg-secondary">off</span>{% endif %}
+          </td>
+          <td>{{ olt.branch or '-' }}{% if olt.site %}<div class="small text-secondary">{{ olt.site }}</div>{% endif %}</td>
+          <td>{{ olt.brand_label }}{% if olt.model %}<div class="small text-secondary">{{ olt.model }}</div>{% endif %}{% if olt.firmware %}<div class="small text-secondary">{{ olt.firmware }}</div>{% endif %}</td>
+          <td class="font-monospace small">{{ olt.host }}</td>
+          <td>
+            {% if olt.online %}<span class="badge bg-success">online</span>
+            {% elif olt.pending %}<span class="badge bg-secondary">waiting</span>
+            {% elif not olt.enabled %}<span class="badge bg-secondary">disabled</span>
+            {% else %}<span class="badge bg-danger">offline</span>{% endif %}
+          </td>
+          <td>{{ olt.onus_up }}/{{ olt.onus_total }}</td>
+          <td>{{ olt.pons_up }}/{{ olt.pons_total }}</td>
+          <td>{{ (olt.cpu_percent | round(0) | int) ~ '%' if olt.cpu_percent is not none else '-' }}</td>
+          <td>{{ (olt.memory_percent | round(0) | int) ~ '%' if olt.memory_percent is not none else '-' }}</td>
+          <td>{{ (olt.temperature_c | round(0) | int) ~ '°' if olt.temperature_c is not none else '-' }}</td>
+          <td>{{ olt.snmp_rtt_ms ~ 'ms' if olt.snmp_rtt_ms is not none else '-' }}</td>
+          <td class="small text-secondary">{{ olt.last_poll or 'never' }}</td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-primary" data-poll="{{ olt.name }}" title="Poll now"><i class="bi bi-arrow-repeat"></i></button>
+            <a class="btn btn-sm btn-outline-secondary" href="/devices?edit={{ olt.id }}" title="Edit"><i class="bi bi-pencil"></i></a>
+            <button class="btn btn-sm btn-outline-danger" data-delete="{{ olt.id }}" data-name="{{ olt.name }}" title="Delete"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div id="olt-alert" class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080;"></div>
+
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/olts.js?v={{ version }}"></script>
+{% endblock %}

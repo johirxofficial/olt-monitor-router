@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Developer - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h5 class="mb-0"><i class="bi bi-code-slash"></i> Developer</h5>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="/developer/files"><i class="bi bi-folder2-open"></i> Browse files ({{ file_count }})</a>
+    <a class="btn btn-sm btn-primary" href="/developer/bundle.zip"><i class="bi bi-download"></i> Download source bundle</a>
+  </div>
+</div>
+
+<div class="alert alert-info py-2 small">
+  <i class="bi bi-box-seam"></i>
+  The source bundle is a complete, ready-to-deploy project for any fresh Linux server.
+  It contains the code, templates, docs, shell scripts and <code>config/config.example.yaml</code>.
+  It <strong>never</strong> contains this site's <code>.env</code>, <code>config/config.yaml</code>,
+  <code>config/optical_oids.yaml</code>, <code>data/</code>, <code>logs/</code> or <code>backups/</code>.
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-box-seam"></i> Source bundle</div>
+      <div class="card-body">
+        <p class="small text-secondary">
+          Hand this zip to a new server. After unzipping, run <code>./install.sh</code> and open
+          <code>/setup</code>.
+        </p>
+        <a class="btn btn-primary btn-sm w-100 mb-2" href="/developer/bundle.zip">
+          <i class="bi bi-download"></i> Download bundle (.zip)
+        </a>
+        <div class="small text-secondary">
+          {{ file_count }} source files &middot; {{ source_bytes | bytes }} uncompressed<br>
+          version {{ version }} &middot; Python {{ python_version }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-folder2-open"></i> This installation</div>
+      <div class="card-body small">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th>Project root</th><td><code>{{ project_root }}</code></td></tr>
+            <tr><th>Env file</th><td><code>{{ env_file }}</code></td></tr>
+            <tr><th>Database</th><td><code>{{ target.host }}:{{ target.port }}/{{ target.name }}</code></td></tr>
+            <tr><th>Web users</th><td>{{ user_count }}</td></tr>
+            <tr><th>Disk free</th><td>{{ free_mb }} MB</td></tr>
+            <tr><th>Backups</th><td>{{ backups | length }} in <code>backups/</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-terminal"></i> Server commands</div>
+      <div class="card-body">
+        <pre class="bg-body-secondary rounded p-2 small mb-2">cd {{ project_root }}
+./status.sh
+./stop.sh && ./start-bg.sh
+systemctl --user restart olt-monitor-router
+journalctl --user -u olt-monitor-router -f</pre>
+        <pre class="bg-body-secondary rounded p-2 small mb-0">.venv/bin/python tools/selftest.py
+.venv/bin/python -m compileall olt_monitor tools run.py</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#dev-start" type="button">New server</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dev-olt" type="button">Add an OLT</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dev-update" type="button">Update any file</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dev-map" type="button">File map</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#dev-audit" type="button">Audit log</button></li>
+</ul>
+
+<div class="tab-content mb-4">
+
+  <div class="tab-pane fade show active" id="dev-start">
+    <div class="card">
+      <div class="card-body">
+        <h6>Deploy on a fresh Ubuntu / Debian server</h6>
+        <ol class="small mb-0">
+          <li>Install prerequisites:
+            <pre class="bg-body-secondary rounded p-2 mb-1">sudo apt update
+sudo apt install -y python3 python3-venv python3-pip mysql-server unzip</pre>
+          </li>
+          <li>Copy the bundle to the server and unzip it:
+            <pre class="bg-body-secondary rounded p-2 mb-1">unzip olt-monitor-router-*.zip -d ~/
+cd ~/olt-monitor-router</pre>
+          </li>
+          <li>Run the installer (twice on a brand-new machine: the first run creates <code>.env</code>):
+            <pre class="bg-body-secondary rounded p-2 mb-1">./install.sh</pre>
+          </li>
+          <li>Fill in <code>.env</code> (MySQL credentials, first device seed) and run <code>./install.sh</code> again.</li>
+          <li>Open <code>http://&lt;server-ip&gt;:5002/setup</code> and create the super admin.</li>
+          <li>Add your OLTs / routers on the <strong>Devices</strong> page, set the site name in <strong>Settings</strong>,
+              then take a first SQL export.</li>
+        </ol>
+        <div class="alert alert-secondary small mt-3 mb-0">
+          Full details: <code>docs/INSTALL.md</code> in the bundle. Roles and daily use:
+          <code>docs/USERS.md</code>.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="dev-olt">
+    <div class="card">
+      <div class="card-body">
+        <h6>Add a new OLT</h6>
+        <p class="small mb-2">Most OLTs need no Python change:</p>
+        <ol class="small">
+          <li><strong>Devices → Add OLT</strong>: host, SNMP port/version, community, brand and PON type.</li>
+          <li>Click <strong>Test</strong> to verify SNMP reachability.</li>
+          <li>Discover the optical OIDs once:
+            <pre class="bg-body-secondary rounded p-2 mb-1">.venv/bin/python tools/discover_olt.py --olt "&lt;OLT name&gt;" --autoconfig</pre>
+          </li>
+          <li>If interface names differ, set the per-device classify regexes
+              (<code>uplink_regex</code>, <code>pon_regex</code>, <code>onu_regex</code>, <code>vlan_regex</code>).</li>
+        </ol>
+        <h6 class="mt-3">If the vendor needs a profile</h6>
+        <table class="table table-sm small mb-0">
+          <thead class="table-light"><tr><th>Change</th><th>File</th></tr></thead>
+          <tbody>
+            <tr><td>Brand fingerprint / PON naming</td><td><code>olt_monitor/vendors.py</code></td></tr>
+            <tr><td>Default optical / MAC OID groups</td><td><code>olt_monitor/config.py</code></td></tr>
+            <tr><td>SNMP walking quirks</td><td><code>olt_monitor/collectors/olt.py</code></td></tr>
+            <tr><td>Telnet CLI parsers</td><td><code>olt_monitor/collectors/telnet*.py</code></td></tr>
+            <tr><td>HTTP-API-only vendors</td><td><code>olt_monitor/cdata.py</code> (pattern for a new client)</td></tr>
+            <tr><td>New DB column / table</td><td><code>olt_monitor/db.py</code> (schema + migrations)</td></tr>
+          </tbody>
+        </table>
+        <div class="alert alert-secondary small mt-3 mb-0">
+          Checklist and conventions: <code>docs/DEVELOPER.md</code>. Always run
+          <code>tools/selftest.py</code> after a vendor change.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="dev-update">
+    <div class="card">
+      <div class="card-body">
+        <h6>Update any file safely</h6>
+        <ol class="small">
+          <li>Take a backup: <code>tar -czf ~/olt-backup.tgz ~/olt-monitor-router</code> and a SQL export in Settings.</li>
+          <li>Edit the file on the server or upload a new bundle and copy only the changed files.</li>
+          <li><strong>Never overwrite</strong> <code>.env</code>, <code>config/config.yaml</code>,
+              <code>config/optical_oids.yaml</code> or <code>data/</code> — they belong to this installation.</li>
+          <li>Reinstall dependencies and apply migrations:
+            <pre class="bg-body-secondary rounded p-2 mb-1">./install.sh</pre>
+          </li>
+          <li>Restart and verify:
+            <pre class="bg-body-secondary rounded p-2 mb-1">systemctl --user restart olt-monitor-router
+./status.sh</pre>
+          </li>
+        </ol>
+        <p class="small text-secondary mb-0">
+          A bundle can be pushed with <code>tools/deploy_remote.sh</code>, which keeps local state
+          and restarts the user unit. Browse and read any shipped file on the
+          <a href="/developer/files">file browser</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="dev-map">
+    <div class="card">
+      <div class="card-body">
+        <table class="table table-sm small mb-0">
+          <thead class="table-light"><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>run.py</code></td><td>Entry point: config, MySQL, monitor threads, uvicorn</td></tr>
+            <tr><td><code>olt_monitor/web/app.py</code></td><td>FastAPI app, auth middleware, pages and JSON API</td></tr>
+            <tr><td><code>olt_monitor/web/templates/</code></td><td>Jinja2 pages; <code>base.html</code> is the shell</td></tr>
+            <tr><td><code>olt_monitor/auth.py</code></td><td>Users, roles, scrypt passwords, session cookies, audit</td></tr>
+            <tr><td><code>olt_monitor/db.py</code></td><td>MySQL schema, migrations, query/upsert helpers</td></tr>
+            <tr><td><code>olt_monitor/scheduler.py</code></td><td>Monitor loop, history sampling, reload</td></tr>
+            <tr><td><code>olt_monitor/collectors/</code></td><td>OLT (SNMP) and router (RouterOS API) collectors</td></tr>
+            <tr><td><code>olt_monitor/registry.py</code></td><td>Device registry stored in MySQL</td></tr>
+            <tr><td><code>olt_monitor/sqladmin.py</code></td><td>SQL export / import / backups</td></tr>
+            <tr><td><code>olt_monitor/bundle.py</code></td><td>Builds the bundle you download here</td></tr>
+            <tr><td><code>tools/</code></td><td>Setup, discovery, self-test, admin recovery, deploy</td></tr>
+            <tr><td><code>config/config.example.yaml</code></td><td>Shipped template; the installer copies it</td></tr>
+            <tr><td><code>docs/</code></td><td><code>INSTALL.md</code>, <code>DEVELOPER.md</code>, <code>USERS.md</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="dev-audit">
+    <div class="card" id="audit">
+      <div class="card-header d-flex justify-content-between">
+        <span>Audit log</span>
+        <span class="small text-secondary">newest first, last 60 entries</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>When</th><th>User</th><th>IP</th><th>Action</th><th>Detail</th></tr></thead>
+          <tbody>
+          {% for row in audit %}
+            <tr>
+              <td class="small text-secondary text-nowrap">{{ row.ts | local if row.ts else '' }}</td>
+              <td class="small">{{ row.username }}</td>
+              <td class="small text-secondary">{{ row.ip or '-' }}</td>
+              <td class="small"><code>{{ row.action }}</code></td>
+              <td class="small text-secondary">{{ row.detail or '' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="small text-secondary">No audit entries yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}

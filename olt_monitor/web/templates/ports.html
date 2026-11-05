@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Ports - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="text-secondary small">Uplinks up</div>
+      <div class="stat-value">{{ data.ports.uplinks_up or 0 }}<span class="text-secondary fs-6">/{{ data.ports.uplinks_total or 0 }}</span></div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card"><div class="card-body">
+      <div class="text-secondary small">PON ports up</div>
+      <div class="stat-value">{{ data.ports.pons_up or 0 }}<span class="text-secondary fs-6">/{{ data.ports.pons_total or 0 }}</span></div>
+    </div></div>
+  </div>
+  <div class="col-md-6">
+    <div class="card stat-card"><div class="card-body">
+      <div class="text-secondary small">Interfaces monitored on the OLT(s)</div>
+      <div class="stat-value">{{ ports | length }}</div>
+      <div class="small text-secondary">GE = uplink, EPON0/x = PON, vlan* = L3 interface, EPONxxONUy = ONU</div>
+    </div></div>
+  </div>
+</div>
+
+{% if olt_names | length > 1 %}
+<form class="row g-2 align-items-end mb-3" method="get">
+  <div class="col-auto">
+    <label class="form-label small mb-0">OLT</label>
+    <select class="form-select form-select-sm" name="olt">
+      <option value="">all</option>
+      {% for name in olt_names %}<option value="{{ name }}" {{ 'selected' if olt == name }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Filter</button>
+    <a class="btn btn-sm btn-outline-secondary" href="/ports">Reset</a>
+  </div>
+</form>
+{% endif %}
+
+<h6 class="mt-4"><i class="bi bi-ethernet"></i> Uplink ports</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
+      <th>Port</th><th>Kind</th><th>State</th><th class="text-end">In</th><th class="text-end">Out</th>
+      <th class="text-end">In octets</th><th class="text-end">Out octets</th><th class="text-end">Errors</th></tr>
+    </thead>
+    <tbody>
+    {% for port in ports if port.kind == 'uplink' %}
+      <tr>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ port.olt_name }}</td>{% endif %}
+        <td>{{ port.if_name }}</td>
+        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ port.kind }}</span></td>
+        <td><span class="badge state-{{ port.oper_status | state }}">{{ port.oper_status | state }}</span></td>
+        <td class="text-end">{{ port.in_bps | bps }}</td>
+        <td class="text-end">{{ port.out_bps | bps }}</td>
+        <td class="text-end small">{{ port.hc_in_octets | bytes }}</td>
+        <td class="text-end small">{{ port.hc_out_octets | bytes }}</td>
+        <td class="text-end">{{ (port.in_errors or 0) + (port.out_errors or 0) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="text-secondary">No uplink ports found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% set olt_sfp = ports | selectattr('sfp_rx_power_dbm','ne', none) | list %}
+{% if olt_sfp %}
+<h6 class="mt-4"><i class="bi bi-lightning-charge"></i> OLT uplink optics</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
+      <th>Port</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th>
+      <th class="text-end">Temp</th><th class="text-end">In</th><th class="text-end">Out</th></tr>
+    </thead>
+    <tbody>
+    {% for port in olt_sfp %}
+      <tr>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ port.olt_name }}</td>{% endif %}
+        <td>{{ port.if_name }}</td>
+        <td class="text-end {{ 'power-weak' if port.sfp_rx_power_dbm is not none and port.sfp_rx_power_dbm <= rx_low }}">{{ port.sfp_rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ port.sfp_tx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ (port.sfp_temperature_c | round(1)) ~ ' °C' if port.sfp_temperature_c is not none else '-' }}</td>
+        <td class="text-end">{{ port.in_bps | bps }}</td>
+        <td class="text-end">{{ port.out_bps | bps }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<h6 class="mt-4"><i class="bi bi-diagram-3"></i> PON ports</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
+      <th>Port</th><th>State</th><th class="text-end">ONUs</th><th class="text-end">Up</th><th class="text-end">Down</th>
+      <th class="text-end">Avg rx</th><th class="text-end">In</th><th class="text-end">Out</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for port in ports if port.kind == 'pon' %}
+      {% set pon_id = port.if_name.split('/')[-1] | int %}
+      {% set summary = (data.pon_summary | selectattr('olt_name','equalto', port.olt_name) | selectattr('pon','equalto', pon_id) | list | first) %}
+      <tr>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ port.olt_name }}</td>{% endif %}
+        <td>{{ port.if_name }}</td>
+        <td><span class="badge state-{{ port.oper_status | state }}">{{ port.oper_status | state }}</span></td>
+        <td class="text-end">{{ summary.onus if summary else 0 }}</td>
+        <td class="text-end text-success">{{ summary.up if summary else 0 }}</td>
+        <td class="text-end {{ 'text-danger' if summary and summary.down }}">{{ summary.down if summary else 0 }}</td>
+        <td class="text-end">{{ summary.rx_avg | dbm if summary and summary.rx_avg is not none else 'n/a' }}</td>
+        <td class="text-end">{{ port.in_bps | bps }}</td>
+        <td class="text-end">{{ port.out_bps | bps }}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/onus?pon={{ pon_id }}&olt={{ port.olt_name }}">ONUs</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="text-secondary">No PON ports found.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h6 class="mt-4"><i class="bi bi-link-45deg"></i> Other interfaces</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
+      <th>Interface</th><th>Kind</th><th>State</th><th class="text-end">In</th><th class="text-end">Out</th></tr>
+    </thead>
+    <tbody>
+    {% for port in ports if port.kind not in ['uplink','pon'] %}
+      <tr>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ port.olt_name }}</td>{% endif %}
+        <td>{{ port.if_name }}</td>
+        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ port.kind }}</span></td>
+        <td><span class="badge state-{{ port.oper_status | state }}">{{ port.oper_status | state }}</span></td>
+        <td class="text-end">{{ port.in_bps | bps }}</td>
+        <td class="text-end">{{ port.out_bps | bps }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-secondary">Nothing else.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% set uplink_ifaces = router_ifaces | selectattr('sfp_rx_power_dbm','ne', none) | list %}
+{% if uplink_ifaces %}
+<h6 class="mt-4"><i class="bi bi-router"></i> Router SFP optics</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr><th>Router</th><th>Interface</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th><th class="text-end">Temp</th>
+      <th class="text-end">In</th><th class="text-end">Out</th></tr>
+    </thead>
+    <tbody>
+    {% for row in uplink_ifaces %}
+      <tr>
+        <td class="small text-secondary">{{ row.router_name }}</td>
+        <td>{{ row.name }}</td>
+        <td class="text-end {{ 'power-weak' if row.sfp_rx_power_dbm is not none and row.sfp_rx_power_dbm <= rx_low }}">{{ row.sfp_rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ row.sfp_tx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ row.sfp_temperature_c if row.sfp_temperature_c is not none else '-' }}</td>
+        <td class="text-end">{{ row.rx_bps | bps }}</td>
+        <td class="text-end">{{ row.tx_bps | bps }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

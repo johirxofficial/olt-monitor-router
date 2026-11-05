@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Users - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-people"></i> PPPoE users
+    <span class="text-secondary fs-6">({{ total }} matching{% if pages > 1 %} &middot; showing {{ first_row }}&ndash;{{ last_row }}{% endif %} &middot; {{ matched_count }} linked on this page &middot; {{ power_count }} with dBm)</span>
+  </h5>
+  {% if not optical_configured %}
+    <a class="badge bg-warning text-dark text-decoration-none" href="/settings">
+      <i class="bi bi-info-circle"></i> dBm needs optical OIDs - click for setup
+    </a>
+  {% elif power_count == 0 and rows | length %}
+    <span class="badge bg-warning text-dark">
+      <i class="bi bi-info-circle"></i> optical OIDs set but no reading yet
+    </span>
+  {% endif %}
+</div>
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  {% if router_names | length > 1 %}
+  <div class="col-auto">
+    <label class="form-label small mb-0">Router</label>
+    <select class="form-select form-select-sm" name="router">
+      <option value="">all</option>
+      {% for name in router_names %}<option value="{{ name }}" {{ 'selected' if router == name }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="col-auto">
+    <label class="form-label small mb-0">Search</label>
+    <input class="form-control form-control-sm" name="q" value="{{ q }}" placeholder="username / IP / MAC / ONU">
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0">ONU link</label>
+    <select class="form-select form-select-sm" name="matched">
+      <option value="" {{ 'selected' if not matched }}>all</option>
+      <option value="yes" {{ 'selected' if matched == 'yes' }}>linked to an ONU / PON</option>
+      <option value="no" {{ 'selected' if matched == 'no' }}>not linked</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0">dBm</label>
+    <select class="form-select form-select-sm" name="optical">
+      <option value="" {{ 'selected' if not optical }}>all</option>
+      <option value="yes" {{ 'selected' if optical == 'yes' }}>has reading</option>
+      <option value="no" {{ 'selected' if optical == 'no' }}>no reading</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Filter</button>
+    <a class="btn btn-sm btn-outline-secondary" href="/users">Reset</a>
+  </div>
+</form>
+
+{% set base = filter_qs %}
+<div class="table-responsive">
+  <table class="table table-sm table-hover table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th><a href="?{{ base }}{% if base %}&{% endif %}sort=name&dir={{ 'desc' if sort=='name' and dir=='asc' else 'asc' }}">User</a></th>
+        <th><a href="?{{ base }}{% if base %}&{% endif %}sort=router_name&dir=asc">Router</a></th>
+        <th>MikroTik iface</th>
+        <th>IP</th>
+        <th>MAC (caller-id)</th>
+        <th>Device vendor</th>
+        <th class="text-end"><a href="?{{ base }}{% if base %}&{% endif %}sort=uptime_seconds&dir=desc">Uptime</a></th>
+        <th class="text-end"><a href="?{{ base }}{% if base %}&{% endif %}sort=rx_power_dbm&dir=asc">Rx dBm</a></th>
+        <th class="text-end">Tx dBm</th>
+        <th class="text-end"><a href="?{{ base }}{% if base %}&{% endif %}sort=distance_m&dir=asc">Dist</a></th>
+        <th>ONU</th>
+        <th>OLT</th>
+        <th>Matched by</th>
+        <th class="text-end"><a href="?{{ base }}{% if base %}&{% endif %}sort=bytes_in&dir=desc">In</a></th>
+        <th class="text-end"><a href="?{{ base }}{% if base %}&{% endif %}sort=bytes_out&dir=desc">Out</a></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td><a href="/user?router={{ row.router_name }}&name={{ row.name | urlencode }}"><strong>{{ row.name }}</strong></a><div class="small text-secondary">{{ row.service or '' }}</div></td>
+        <td class="small text-secondary">{{ row.router_name or '-' }}</td>
+        <td class="small">
+          {% if row.access_iface %}
+            <code>{{ row.access_iface }}</code>
+            {% if row.access_source == 'vlan' %}<span class="badge bg-success-subtle text-success-emphasis">vlan</span>
+            {% elif row.access_source == 'server' %}<span class="badge bg-info-subtle text-info-emphasis">server</span>
+            {% elif row.access_source == 'pppoe' %}<span class="badge bg-secondary-subtle text-secondary-emphasis">pppoe</span>{% endif %}
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td>{{ row.address or '-' }}</td>
+        <td class="small text-secondary">
+          {{ row.caller_id or '-' }}
+          {% if row.onu_mac %}<div class="font-monospace">ONU {{ row.onu_mac }}</div>{% endif %}
+        </td>
+        <td class="small">
+          {{ row.caller_id | oui if row.caller_id else '-' }}
+          {% if row.onu_vendor %}<div class="text-secondary">{{ row.onu_vendor }}</div>{% endif %}
+        </td>
+        <td class="text-end">{{ row.uptime_seconds | uptime }}</td>
+        <td class="text-end {{ 'power-weak' if row.rx_power_dbm is not none and row.rx_power_dbm <= rx_low }}">
+          {{ row.rx_power_dbm | dbm }}
+        </td>
+        <td class="text-end">{{ row.tx_power_dbm | dbm }}</td>
+        <td class="text-end small">{{ row.distance_m if row.distance_m is not none else '-' }}</td>
+        <td>
+          {% if row.onu_ifindex is not none %}
+            <a href="/onu?olt={{ row.onu_olt_name | urlencode }}&ifindex={{ row.onu_ifindex }}">{{ row.onu_name }}</a>
+            {% if row.onu_state == 1 %}<span class="badge bg-success-subtle text-success-emphasis">up</span>
+            {% elif row.onu_state == 2 %}<span class="badge bg-danger-subtle text-danger-emphasis">down</span>{% endif %}
+          {% elif row.onu_pon is not none %}
+            <a href="/pon?olt={{ row.onu_olt_name | urlencode }}&pon={{ row.onu_pon }}">pon{{ row.onu_pon }}</a>
+            <span class="badge bg-info-subtle text-info-emphasis" title="The OLT's forwarding table only reports the PON">PON</span>
+          {% else %}<span class="text-secondary">not linked</span>{% endif %}
+        </td>
+        <td class="small text-secondary">
+          {{ row.onu_olt_name or '-' }}
+          {% if row.onu_pon is not none %}<div>pon{{ row.onu_pon }}</div>{% endif %}
+        </td>
+        <td>
+          {% if row.match_method == 'pon' %}
+            <span class="badge bg-info-subtle text-info-emphasis" title="Matched at PON level: the CLI forwarding table does not name the ONU">pon</span>
+          {% elif row.match_method %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ row.match_method }}</span>
+          {% else %}<span class="text-secondary small">-</span>{% endif %}
+        </td>
+        <td class="text-end">{{ row.bytes_in | bytes }}</td>
+        <td class="text-end">{{ row.bytes_out | bytes }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="15" class="text-secondary">No online users. Check the MikroTik API settings if you expect some.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "_pager.html" %}
+
+{% endblock %}

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ onu.if_name }} - {{ app_title }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small mb-2">
+    <li class="breadcrumb-item"><a href="/pons">PONs</a></li>
+    <li class="breadcrumb-item"><a href="/pons?olt={{ olt }}">{{ olt }}</a></li>
+    {% if onu.pon is not none %}
+      <li class="breadcrumb-item"><a href="/pon?olt={{ olt }}&pon={{ onu.pon }}">PON {{ onu.pon }}</a></li>
+    {% endif %}
+    <li class="breadcrumb-item active">{{ onu.if_name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-hdd-network"></i> {{ onu.if_name }}
+    <span class="badge state-{{ onu.oper_status | state }}">{{ onu.oper_status | state }}</span>
+    <span class="text-secondary fs-6">{{ olt }} &middot; PON {{ onu.pon }} / ONU {{ onu.onu_id }} &middot; ifindex {{ onu.ifindex }}</span>
+  </h5>
+  <a class="btn btn-sm btn-outline-secondary" href="/onus?q={{ onu.if_name }}">Find in ONU list</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2 col-lg-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Rx power</div>
+      <div class="stat-value {{ 'power-weak' if onu.rx_power_dbm is not none and onu.rx_power_dbm <= rx_low }}">{{ onu.rx_power_dbm | dbm }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Tx power</div>
+      <div class="stat-value">{{ onu.tx_power_dbm | dbm }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Temperature</div>
+      <div class="stat-value">{{ (onu.temperature_c | round(0) | int) ~ ' °C' if onu.temperature_c is not none else 'n/a' }}</div>
+      <div class="small text-secondary">
+        {{ (onu.voltage_v | round(2)) ~ ' V' if onu.voltage_v is not none else '' }}
+        {% if onu.bias_current_ma is not none %}&middot; {{ onu.bias_current_ma | round(1) }} mA{% endif %}
+      </div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Distance</div>
+      <div class="stat-value">
+        {% if onu.distance_m is none %}n/a
+        {% elif onu.distance_m >= 1000 %}{{ (onu.distance_m / 1000) | round(2) }} km
+        {% else %}{{ onu.distance_m | round(0) | int }} m{% endif %}
+      </div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">In / Out</div>
+      <div class="small">{{ onu.in_bps | bps }}<br>{{ onu.out_bps | bps }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Data / WAN</div>
+      <div class="small">{{ onu.hc_in_octets | bytes }}<br>{{ onu.hc_out_octets | bytes }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">ONU details</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-35">Interface</th><td><code>{{ onu.if_name }}</code> <span class="text-secondary small">{{ onu.if_descr or '' }}</span></td></tr>
+            <tr><th>OLT</th><td>{{ olt }}</td></tr>
+            <tr><th>PON / ONU id</th>
+              <td>{{ onu.pon }}
+                {% if onu.pon is not none %}<a class="small ms-2" href="/pon?olt={{ olt }}&pon={{ onu.pon }}">open PON</a>{% endif %}
+                / {{ onu.onu_id }}</td></tr>
+            <tr><th>ifindex</th><td>{{ onu.ifindex }}</td></tr>
+            <tr><th>Admin / oper</th>
+              <td><span class="badge state-{{ onu.admin_status | state }}">admin {{ onu.admin_status | state }}</span>
+                  <span class="badge state-{{ onu.oper_status | state }}">oper {{ onu.oper_status | state }}</span></td></tr>
+            <tr><th>ONU MAC</th><td>
+              <code>{{ onu.mac or '-' }}</code>
+              {% if onu_vendor %}<span class="badge bg-light text-dark border ms-1">{{ onu_vendor }}</span>{% endif %}
+            </td></tr>
+            <tr><th>Serial</th><td><code>{{ onu.serial or '-' }}</code></td></tr>
+            <tr><th>Model / type</th>
+              <td>{{ onu.model or onu.onu_type or '-' }}
+                {% if onu.vendor %}<span class="badge bg-light text-secondary ms-1">{{ onu.vendor }}</span>{% endif %}
+                {% if onu.sw_version %}<span class="small text-secondary ms-1">fw {{ onu.sw_version }}</span>{% endif %}
+              </td></tr>
+            <tr><th>VLAN</th><td>{{ onu.vlan or '-' }}</td></tr>
+            <tr><th>Rx / Tx power</th>
+              <td>{{ onu.rx_power_dbm | dbm }} / {{ onu.tx_power_dbm | dbm }}
+                  <span class="text-secondary small">(OLT side rx: {{ onu.olt_rx_power_dbm | dbm }})</span></td></tr>
+            <tr><th>Temperature</th><td>{{ onu.temperature_c if onu.temperature_c is not none else 'n/a' }}</td></tr>
+            <tr><th>Voltage / bias</th>
+              <td>
+                {{ (onu.voltage_v | round(2)) ~ ' V' if onu.voltage_v is not none else 'n/a' }}
+                / {{ (onu.bias_current_ma | round(1)) ~ ' mA' if onu.bias_current_ma is not none else 'n/a' }}
+              </td></tr>
+            <tr><th>Distance</th><td>{{ onu.distance_m if onu.distance_m is not none else 'n/a' }}{{ ' m' if onu.distance_m is not none }}</td></tr>
+            <tr><th>Last down</th>
+              <td>
+                {% if onu.last_down_reason %}
+                  <span class="badge {{ 'bg-danger' if onu.oper_status == 2 else 'bg-secondary' }}">{{ onu.last_down_reason }}</span>
+                  {% if onu.last_down_at %}<span class="small text-secondary ms-1">{{ onu.last_down_at | local }}</span>{% endif %}
+                {% else %}<span class="text-secondary">none recorded</span>{% endif %}
+              </td></tr>
+            <tr><th>PPPoE user</th>
+              <td>
+                {% if onu.pppoe_user %}
+                  <a href="/users?q={{ onu.pppoe_user }}">{{ onu.pppoe_user }}</a>
+                {% elif pon_users %}
+                  <a href="/pon?olt={{ olt | urlencode }}&pon={{ onu.pon }}">{{ pon_users | length }} users on pon{{ onu.pon }}</a>
+                  <span class="badge bg-info-subtle text-info-emphasis ms-1">PON-level</span>
+                {% else %}<span class="text-secondary">not linked</span>{% endif %}
+              </td></tr>
+            <tr><th>Last poll</th><td class="small text-secondary">{{ onu.updated_at | local }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span>Optical power - last 24h</span>
+        <span class="small text-secondary">5 min samples</span>
+      </div>
+      <div class="card-body">
+        <div class="chart-box" style="height:240px">
+          <canvas id="onu-chart" data-olt="{{ olt }}" data-ifindex="{{ onu.ifindex }}"></canvas>
+        </div>
+        <p class="small text-secondary mb-0 mt-2">
+          History is written every N polls (<code>database.history_every_n_polls</code>).
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h6 class="mt-4"><i class="bi bi-people"></i> PPPoE sessions on this ONU <span class="text-secondary small">({{ users | length }})</span></h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>User</th><th>Router</th><th>MikroTik iface</th><th>IP</th><th>MAC (caller-id)</th>
+        <th class="text-end">Uptime</th><th>Session id</th><th>Matched by</th>
+        <th class="text-end">In</th><th class="text-end">Out</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><a href="/user?router={{ u.router_name }}&name={{ u.name | urlencode }}"><strong>{{ u.name }}</strong></a></td>
+        <td class="small text-secondary">{{ u.router_name }}</td>
+        <td class="small">{% if u.access_iface %}<code>{{ u.access_iface }}</code>{% else %}<span class="text-secondary">-</span>{% endif %}</td>
+        <td>{{ u.address or '-' }}</td>
+        <td class="small text-secondary">{{ u.caller_id or '-' }}</td>
+        <td class="text-end">{{ u.uptime_seconds | uptime }}</td>
+        <td class="small"><code>{{ u.session_id or '-' }}</code></td>
+        <td><span class="badge bg-secondary-subtle text-secondary-emphasis">{{ u.match_method or '-' }}</span></td>
+        <td class="text-end">{{ u.bytes_in | bytes }}</td>
+        <td class="text-end">{{ u.bytes_out | bytes }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="text-secondary">No online PPPoE session is linked to this ONU right now.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if pon_users %}
+<h6 class="mt-4">
+  <i class="bi bi-diagram-3"></i> PPPoE sessions linked to this PON
+  <span class="text-secondary small">({{ pon_users | length }})</span>
+</h6>
+<div class="alert alert-info py-2 small">
+  <i class="bi bi-info-circle"></i>
+  These subscribers were matched at <strong>PON level</strong>: this OLT's forwarding table
+  reports <code>pon{{ onu.pon }}</code> instead of the individual ONU, so they cannot be
+  pinned to one ONU.
+</div>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>User</th><th>Router</th><th>IP</th><th>MAC (caller-id)</th><th>Vendor</th>
+        <th class="text-end">Uptime</th><th class="text-end">In</th><th class="text-end">Out</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in pon_users %}
+      <tr>
+        <td><a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}"><strong>{{ u.name }}</strong></a></td>
+        <td class="small text-secondary">{{ u.router_name }}</td>
+        <td>{{ u.address or '-' }}</td>
+        <td class="small">{{ u.caller_id or '-' }}</td>
+        <td class="small">{{ u.caller_id | oui if u.caller_id else '-' }}</td>
+        <td class="text-end">{{ u.uptime_seconds | uptime }}</td>
+        <td class="text-end">{{ u.bytes_in | bytes }}</td>
+        <td class="text-end">{{ u.bytes_out | bytes }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/detail.js?v={{ version }}"></script>
+{% endblock %}

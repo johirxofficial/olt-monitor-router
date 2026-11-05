@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Alerts - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Active alerts ({{ rows | length }})</h5>
+  <div>
+    <span class="badge bg-danger">{{ rows | selectattr('severity','equalto','critical') | list | length }} critical</span>
+    <span class="badge bg-warning text-dark">{{ rows | selectattr('severity','equalto','warning') | list | length }} warning</span>
+    <span class="badge bg-info text-dark">{{ rows | selectattr('severity','equalto','info') | list | length }} info</span>
+  </div>
+</div>
+
+<div class="alert alert-secondary small">
+  Thresholds live in <code>config/config.yaml</code> under <code>alerts:</code> -
+  weak optical below <strong>{{ rx_low }} dBm</strong>, critical below
+  <strong>{{ rx_critical }} dBm</strong>, too strong above <strong>{{ rx_high }} dBm</strong>.
+</div>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr><th>Severity</th><th>Scope</th><th>Object</th><th>PPPoE user</th><th>Message</th><th>Since</th></tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      <tr class="{{ 'table-danger' if row.severity == 'critical' else ('table-warning' if row.severity == 'warning') }}">
+        <td><span class="badge sev-{{ row.severity }}">{{ row.severity }}</span></td>
+        <td class="small text-secondary">{{ row.scope }}</td>
+        <td>{{ row.ref }}</td>
+        <td class="small">
+          {% if row.pppoe_user %}
+            <a href="/users?q={{ row.pppoe_user | urlencode }}">{{ row.pppoe_user }}</a>
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td>{{ row.message }}</td>
+        <td class="small text-secondary">{{ row.ts | local }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-secondary">Everything looks healthy - no active alerts.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

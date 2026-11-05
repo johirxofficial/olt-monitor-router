@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ detail.if_name }} - {{ app_title }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small mb-2">
+    <li class="breadcrumb-item"><a href="/pons">PONs</a></li>
+    <li class="breadcrumb-item"><a href="/pons?olt={{ olt }}">{{ olt }}</a></li>
+    <li class="breadcrumb-item active">{{ detail.if_name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-diagram-3"></i> {{ olt }} &middot; {{ detail.if_name }}
+    {% if detail.oper_status is not none %}
+      <span class="badge state-{{ detail.oper_status | state }}">{{ detail.oper_status | state }}</span>
+    {% endif %}
+  </h5>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="/onus?olt={{ olt }}&pon={{ pon }}">Open in ONU list</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/users?q={{ olt }}">Users</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">ONUs online / registered</div>
+      <div class="stat-value">{{ detail.up }}<span class="text-secondary fs-6">/{{ detail.onus }}</span></div>
+      <div class="capacity mt-1">
+        <div class="bar">
+          <div class="up" style="width: {{ detail.up_pct if detail.up_pct is not none else 0 }}%"></div>
+          <div class="down" style="width: {{ (100 - detail.up_pct) if detail.up_pct is not none and detail.up else 0 }}%"></div>
+        </div>
+        <div class="small text-secondary">{{ detail.onus }}/{{ detail.max_onus }} capacity used</div>
+      </div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">Up / Down</div>
+      <div class="stat-value"><span class="text-success">{{ detail.up }}</span><span class="text-secondary">/</span><span class="{{ 'text-danger' if detail.down }}">{{ detail.down }}</span></div>
+      {% if detail.weak %}<div class="small power-weak">{{ detail.weak }} weak rx</div>{% endif %}
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">Linked users</div>
+      <div class="stat-value">{{ detail.users }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">Avg rx</div>
+      <div class="stat-value">{{ detail.rx_avg | dbm }}</div>
+      <div class="small text-secondary">worst {{ detail.rx_min | dbm }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">SFP TX / RX</div>
+      <div class="stat-value">
+        {{ detail.sfp_tx_power_dbm | dbm }}
+        <span class="text-secondary fs-6">/</span>
+        <span class="{{ 'power-weak' if detail.sfp_rx_power_dbm is not none and detail.sfp_rx_power_dbm <= -27 }}">{{ detail.sfp_rx_power_dbm | dbm }}</span>
+      </div>
+      <div class="small text-secondary">module {{ (detail.sfp_temperature_c | round(1)) ~ ' °C' if detail.sfp_temperature_c is not none else '-' }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">Port traffic</div>
+      <div class="small">{{ detail.in_bps | bps }}<br>{{ detail.out_bps | bps }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-3 col-xl">
+    <div class="card stat-card h-100"><div class="card-body py-2">
+      <div class="text-secondary small">ONU traffic</div>
+      <div class="small">{{ detail.onu_in_bps | bps }}<br>{{ detail.onu_out_bps | bps }}</div>
+    </div></div>
+  </div>
+</div>
+
+<h6 class="mt-4"><i class="bi bi-hdd-network"></i> ONUs on this PON <span class="text-secondary small">({{ onus | length }})</span></h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>ONU</th><th class="text-end">ID</th><th>State</th>
+        <th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th>
+        <th class="text-end">Temp</th><th class="text-end">Distance</th>
+        <th>MAC</th><th>Vendor</th><th>PPPoE user</th>
+        <th class="text-end">Traffic (in/out)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for onu in onus %}
+      <tr class="{{ 'table-danger' if onu.oper_status == 2 else '' }}">
+        <td><a href="/onu?olt={{ onu.olt_name }}&ifindex={{ onu.ifindex }}">{{ onu.if_name }}</a></td>
+        <td class="text-end">{{ onu.onu_id }}</td>
+        <td><span class="badge state-{{ onu.oper_status | state }}">{{ onu.oper_status | state }}</span></td>
+        <td class="text-end {{ 'power-weak' if onu.rx_power_dbm is not none and onu.rx_power_dbm <= rx_low }}">{{ onu.rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ onu.tx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ onu.temperature_c if onu.temperature_c is not none else 'n/a' }}</td>
+        <td class="text-end">{{ onu.distance_m if onu.distance_m is not none else 'n/a' }}{{ ' m' if onu.distance_m is not none }}</td>
+        <td class="small text-secondary">{{ onu.mac or '-' }}</td>
+        <td class="small">{{ onu.mac | oui if onu.mac else (onu.vendor or '-') }}</td>
+        <td>
+          {% if onu.pppoe_user %}
+            <a href="/users?q={{ onu.pppoe_user }}">{{ onu.pppoe_user }}</a>
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td class="text-end small">{{ onu.in_bps | bps }} / {{ onu.out_bps | bps }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="11" class="text-secondary">No ONUs registered on this PON.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h6 class="mt-4"><i class="bi bi-people"></i> PPPoE users behind this PON <span class="text-secondary small">({{ users | length }})</span></h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>User</th><th>Router</th><th>MikroTik iface</th><th>IP</th><th>MAC (caller-id)</th>
+        <th>Vendor</th>
+        <th class="text-end">Uptime</th><th>ONU</th>
+        <th class="text-end">Rx dBm</th><th class="text-end">In</th><th class="text-end">Out</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><a href="/user?router={{ u.router_name }}&name={{ u.name | urlencode }}">{{ u.name }}</a></td>
+        <td class="small text-secondary">{{ u.router_name }}</td>
+        <td class="small">{% if u.access_iface %}<code>{{ u.access_iface }}</code>{% else %}<span class="text-secondary">-</span>{% endif %}</td>
+        <td>{{ u.address or '-' }}</td>
+        <td class="small text-secondary">{{ u.caller_id or '-' }}</td>
+        <td class="small">{{ u.caller_id | oui if u.caller_id else '-' }}</td>
+        <td class="text-end">{{ u.uptime_seconds | uptime }}</td>
+        <td>
+          {% if u.onu_ifindex is not none %}
+            <a href="/onu?olt={{ u.onu_olt_name | urlencode }}&ifindex={{ u.onu_ifindex }}">{{ u.onu_name }}</a>
+          {% elif u.onu_pon is not none %}
+            <span class="badge bg-info-subtle text-info-emphasis" title="Only the PON is known on this firmware">PON level</span>
+          {% else %}-{% endif %}
+        </td>
+        <td class="text-end {{ 'power-weak' if u.rx_power_dbm is not none and u.rx_power_dbm <= rx_low }}">{{ u.rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ u.bytes_in | bytes }}</td>
+        <td class="text-end">{{ u.bytes_out | bytes }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="11" class="text-secondary">No PPPoE user is currently linked to this PON.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

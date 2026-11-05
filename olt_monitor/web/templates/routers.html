@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Routers - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-router"></i> Routers
+    <span class="text-secondary fs-6">({{ routers | length }} configured - manage them on the <a href="/devices">Devices</a> page)</span>
+  </h5>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for rt in routers %}
+    {% set st = status.routers.get(rt.name) if status and status.routers else none %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span>
+            <i class="bi bi-router"></i> {{ rt.name }}
+            {% if rt.disabled %}<span class="badge bg-secondary">disabled</span>{% endif %}
+          </span>
+          {% if rt.ok is not none %}
+            <span class="badge {{ 'bg-success' if rt.ok else 'bg-danger' }}">{{ 'ok' if rt.ok else 'failed' }}</span>
+          {% else %}<span class="badge bg-secondary">no poll</span>{% endif %}
+        </div>
+        <div class="card-body">
+          <table class="table table-sm mb-0">
+            <tbody>
+              <tr><th class="w-40">Identity</th><td>{{ rt.payload.identity or '-' }}</td></tr>
+              <tr><th>RouterOS</th><td>{{ rt.payload.version or '-' }}</td></tr>
+              <tr><th>Board</th><td>{{ rt.payload.board_name or '-' }} <span class="text-secondary small">{{ rt.payload.architecture or '' }}</span></td></tr>
+              <tr><th>Host / API</th><td><code>{{ rt.host }}:{{ rt.payload.api_port or '' }}</code></td></tr>
+              <tr><th>Uptime</th><td>{{ rt.payload.uptime_text or '-' }}</td></tr>
+              <tr><th>CPU</th><td>{{ rt.payload.cpu_load if rt.payload.cpu_load is not none else '-' }}%</td></tr>
+              <tr><th>Memory free</th><td>{{ rt.payload.free_memory_percent if rt.payload.free_memory_percent is not none else '-' }}%</td></tr>
+              <tr><th>PPPoE online</th><td>{{ rt.payload.pppoe_users if rt.payload.pppoe_users is not none else (st.users if st else '-') }}</td></tr>
+              <tr><th>Last poll</th><td class="small text-secondary">{{ rt.updated_local }}</td></tr>
+            {% if rt.error %}<tr><th>Error</th><td class="small text-danger">{{ rt.error }}</td></tr>{% endif %}
+            </tbody>
+          </table>
+        </div>
+        <div class="card-footer d-flex gap-2">
+          <a class="btn btn-sm btn-outline-primary" href="/router?name={{ rt.name | urlencode }}">Open</a>
+          <a class="btn btn-sm btn-outline-secondary" href="/users?router={{ rt.name | urlencode }}">Users</a>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="col-12"><p class="text-secondary">No router configured. Add one on the <a href="/devices">Devices</a> page.</p></div>
+  {% endfor %}
+</div>
+
+{% set sfp_ifaces = ifaces | selectattr('sfp_rx_power_dbm','ne', none) | list %}
+{% if sfp_ifaces %}
+<h6><i class="bi bi-lightning-charge"></i> SFP optics (all routers)</h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr><th>Router</th><th>Interface</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th>
+      <th class="text-end">Temp</th><th class="text-end">In</th><th class="text-end">Out</th></tr>
+    </thead>
+    <tbody>
+    {% for row in sfp_ifaces %}
+      <tr>
+        <td class="small text-secondary">{{ row.router_name }}</td>
+        <td>{{ row.name }}</td>
+        <td class="text-end {{ 'power-weak' if row.sfp_rx_power_dbm is not none and row.sfp_rx_power_dbm <= rx_low }}">{{ row.sfp_rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ row.sfp_tx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ row.sfp_temperature_c if row.sfp_temperature_c is not none else '-' }}</td>
+        <td class="text-end">{{ row.rx_bps | bps }}</td>
+        <td class="text-end">{{ row.tx_bps | bps }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

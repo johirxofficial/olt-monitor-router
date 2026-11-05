@@ -1,0 +1,21 @@
+{# Shared page navigation.  Expects: page, pages, first_row, last_row, total,
+   filter_qs, sort, dir.  Keeping every list to 200 rows is what keeps the web
+   UI fast with thousands of ONUs/users. #}
+{% if pages > 1 %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+  <div class="small text-secondary">
+    Showing {{ first_row }}&ndash;{{ last_row }} of {{ total }}
+  </div>
+  <nav aria-label="Pages">
+    <ul class="pagination pagination-sm mb-0">
+      <li class="page-item {{ 'disabled' if page <= 1 }}">
+        <a class="page-link" href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}sort={{ sort }}&dir={{ dir }}&page={{ page - 1 }}">Prev</a>
+      </li>
+      <li class="page-item disabled"><span class="page-link">{{ page }} / {{ pages }}</span></li>
+      <li class="page-item {{ 'disabled' if page >= pages }}">
+        <a class="page-link" href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}sort={{ sort }}&dir={{ dir }}&page={{ page + 1 }}">Next</a>
+      </li>
+    </ul>
+  </nav>
+</div>
+{% endif %}

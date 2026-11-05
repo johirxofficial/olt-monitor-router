@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}ONUs - {{ app_title }}{% endblock %}
+{% block content %}
+
+{% macro dist(value) -%}
+  {%- if value is none -%}-
+  {%- elif value >= 1000 -%}{{ (value / 1000) | round(2) }} km
+  {%- else -%}{{ value | round(0) | int }} m
+  {%- endif -%}
+{%- endmacro %}
+
+{% set base = filter_qs %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-hdd-network"></i> ONUs
+    <span class="text-secondary fs-6">
+      {{ summary.total }} matching{% if summary.pages > 1 %} &middot; showing {{ summary.first_row }}&ndash;{{ summary.last_row }}{% endif %}
+      {% if weak_dbm %} &middot; weak rx below {{ weak_dbm }} dBm{% endif %}
+    </span>
+  </h5>
+  {% if not optical_configured %}
+    <a class="badge bg-warning text-dark text-decoration-none" href="/settings">
+      <i class="bi bi-info-circle"></i> optical OIDs not configured - click for setup
+    </a>
+  {% endif %}
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="summary-tile">
+      <div class="n">{{ summary.total }}</div>
+      <div class="t">Total</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="summary-tile ok">
+      <div class="n text-success">{{ summary.up }}</div>
+      <div class="t">Online</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="summary-tile bad">
+      <div class="n text-danger">{{ summary.down }}</div>
+      <div class="t">Offline</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="summary-tile warn">
+      <div class="n text-warning-emphasis">{{ summary.weak }}</div>
+      <div class="t">Weak Rx</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="summary-tile info" title="ONUs with a subscriber linked to that exact ONU">
+      <div class="n">{{ summary.pppoe }}</div>
+      <div class="t">PPPoE active</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="summary-tile">
+      <div class="n text-secondary">{{ summary.no_power }}</div>
+      <div class="t">No optical reading</div>
+    </div>
+  </div>
+</div>
+
+{% if summary.pon_level %}
+<div class="alert alert-info py-2 small">
+  <i class="bi bi-info-circle"></i>
+  <strong>{{ summary.pon_level }} PPPoE subscriber(s)</strong> are linked at
+  <strong>PON level</strong>: this OLT's forwarding table reports <code>ponN</code>
+  instead of the individual ONU, so they cannot be pinned to one ONU. Every ONU row
+  shows how many users share its PON — click that count to open the PON and see the
+  user names, ONU MACs, optical power and MikroTik interface.
+</div>
+{% endif %}
+
+<form class="row g-2 align-items-end mb-3" method="get">
+  {% if olt_names | length > 1 %}
+  <div class="col-auto">
+    <label class="form-label small mb-0">OLT</label>
+    <select class="form-select form-select-sm" name="olt">
+      <option value="">all</option>
+      {% for name in olt_names %}<option value="{{ name }}" {{ 'selected' if olt == name }}>{{ name }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  <div class="col-auto">
+    <label class="form-label small mb-0">PON</label>
+    <select class="form-select form-select-sm" name="pon">
+      <option value="">all</option>
+      {% for p in pon_numbers %}
+        <option value="{{ p }}" {{ 'selected' if pon == p }}>{{ p }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0">Status</label>
+    <select class="form-select form-select-sm" name="status">
+      <option value="" {{ 'selected' if not status }}>all</option>
+      <option value="up" {{ 'selected' if status == 'up' }}>online</option>
+      <option value="down" {{ 'selected' if status == 'down' }}>offline</option>
+      <option value="weak" {{ 'selected' if status == 'weak' }}>weak Rx</option>
+      <option value="pppoe" {{ 'selected' if status == 'pppoe' }}>has PPPoE</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0">Search</label>
+    <input class="form-control form-control-sm" name="q" value="{{ q }}"
+           placeholder="ONU / user / MAC / serial / model / VLAN" style="min-width: 15rem;">
+  </div>
+  <div class="col-auto">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="power" value="1" id="pow" {{ 'checked' if power }}>
+      <label class="form-check-label small" for="pow">only with optical reading</label>
+    </div>
+  </div>
+  <div class="col-auto">
+    <button class="btn btn-sm btn-primary">Filter</button>
+    <a class="btn btn-sm btn-outline-secondary" href="/onus">Reset</a>
+  </div>
+</form>
+
+<div class="table-responsive">
+  <table class="table table-sm table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th><a href="?{{ base }}&sort=if_name&dir={{ 'desc' if sort == 'if_name' and dir == 'asc' else 'asc' }}">ONU</a></th>
+        {% if olt_names | length > 1 %}<th><a href="?{{ base }}&sort=olt_name&dir=asc">OLT</a></th>{% endif %}
+        <th class="text-end"><a href="?{{ base }}&sort=onu_id&dir=asc">PON / ID</a></th>
+        <th>State</th>
+        <th class="text-end"><a href="?{{ base }}&sort=rx_power_dbm&dir=asc">Rx dBm</a></th>
+        <th class="text-end">Tx dBm</th>
+        <th class="text-end"><a href="?{{ base }}&sort=distance_m&dir=asc">Distance</a></th>
+        <th>Serial / model</th>
+        <th>VLAN</th>
+        <th>MAC</th>
+        <th>PPPoE user</th>
+        <th>MikroTik iface</th>
+        <th class="text-end">Temp / volt / bias</th>
+        <th>Last down</th>
+        <th class="text-end">Traffic</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+      {% set user = row.linked_user or row.pppoe_user %}
+      <tr class="{{ 'table-danger' if row.oper_status == 2 else '' }}">
+        <td>
+          <a href="/onu?olt={{ row.olt_name | urlencode }}&ifindex={{ row.ifindex }}">{{ row.if_name }}</a>
+          {% if row.if_descr and row.if_descr != row.if_name %}
+            <div class="small text-secondary">{{ row.if_descr }}</div>
+          {% endif %}
+        </td>
+        {% if olt_names | length > 1 %}<td class="small text-secondary">{{ row.olt_name }}</td>{% endif %}
+        <td class="text-end">
+          {% if row.pon is not none %}
+            <a href="/pon?olt={{ row.olt_name | urlencode }}&pon={{ row.pon }}">{{ row.pon }}</a>/{{ row.onu_id }}
+          {% else %}-/{{ row.onu_id }}{% endif %}
+        </td>
+        <td><span class="badge state-{{ row.oper_status | state }}">{{ row.oper_status | state }}</span></td>
+        <td class="text-end {{ 'power-weak' if row.rx_power_dbm is not none and row.rx_power_dbm <= weak_dbm }}">
+          {{ row.rx_power_dbm | dbm }}
+        </td>
+        <td class="text-end">{{ row.tx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ dist(row.distance_m) }}</td>
+        <td class="small">
+          {% if row.serial %}<span class="font-monospace">{{ row.serial }}</span>{% endif %}
+          {% if row.model %}<div class="text-secondary">{{ row.model }}</div>{% endif %}
+          {% if not row.serial and not row.model %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td class="small">{{ row.vlan or '-' }}</td>
+        <td class="small text-secondary">{{ row.mac or '-' }}</td>
+        <td>
+          {% if user %}
+            <a href="/users?q={{ user | urlencode }}">{{ user }}</a>
+          {% elif row.pon_user_count %}
+            <a class="text-decoration-none" href="/pon?olt={{ row.olt_name | urlencode }}&pon={{ row.pon }}"
+               title="This OLT's forwarding table names the PON, not the ONU - open the PON to see every user">
+              pon{{ row.pon }} &middot; {{ row.pon_user_count }} users
+            </a>
+            <div class="small text-secondary">PON-level</div>
+            {% if row.pon_user_names %}
+            <div class="small text-secondary text-truncate" style="max-width: 13rem;"
+                 title="{{ row.pon_user_names | join(', ') }}{{ ' +' ~ row.pon_user_more ~ ' more' if row.pon_user_more }}">
+              {{ row.pon_user_names | join(', ') }}{% if row.pon_user_more %} +{{ row.pon_user_more }}{% endif %}
+            </div>
+            {% endif %}
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td class="small">
+          {% if row.linked_iface %}
+            <code>{{ row.linked_iface }}</code>
+          {% elif row.pon_iface %}
+            <code>{{ row.pon_iface }}</code>
+            <div class="small text-secondary">PON-level</div>
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td class="text-end small text-nowrap">
+          {{ (row.temperature_c | round(0) | int) ~ '°' if row.temperature_c is not none else '-' }}
+          {{ (row.voltage_v | round(2)) ~ 'V' if row.voltage_v is not none else '' }}
+          {{ (row.bias_current_ma | round(1)) ~ 'mA' if row.bias_current_ma is not none else '' }}
+        </td>
+        <td class="small">
+          {% if row.last_down_reason %}
+            <span class="{{ 'text-danger fw-semibold' if row.oper_status == 2 else 'text-secondary' }}">
+              {{ row.last_down_reason }}
+            </span>
+            {% if row.last_down_at %}<div class="text-secondary">{{ row.last_down_at | local }}</div>{% endif %}
+          {% else %}<span class="text-secondary">-</span>{% endif %}
+        </td>
+        <td class="text-end small">{{ row.in_bps | bps }} / {{ row.out_bps | bps }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="15" class="text-secondary">No ONUs match the filter.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% include "_pager.html" %}
+
+<p class="small text-secondary">
+  <i class="bi bi-info-circle"></i>
+  Rx below <strong>{{ weak_dbm }} dBm</strong> is highlighted. Distance is the fibre
+  length reported by the ONU; the last-down reason is read from the inactive-ONU
+  CLI table (<em>Power off / Dying Gasp</em> = the customer lost power,
+  <em>LOS / Fiber</em> = the fibre or the ONU itself is down).
+</p>
+
+{% endblock %}

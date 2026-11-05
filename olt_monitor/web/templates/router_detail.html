@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} - {{ app_title }}{% endblock %}
+{% block content %}
+
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb small mb-2">
+    <li class="breadcrumb-item"><a href="/routers">Routers</a></li>
+    <li class="breadcrumb-item active">{{ name }}</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <h5 class="mb-0">
+    <i class="bi bi-router"></i> {{ name }}
+    <span class="text-secondary fs-6">{{ info.identity or '' }} &middot; RouterOS {{ info.version or '?' }}</span>
+    {% if status and status.ok is not none %}
+      <span class="badge {{ 'bg-success' if status.ok else 'bg-danger' }}">{{ 'ok' if status.ok else 'failed' }}</span>
+    {% endif %}
+  </h5>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-primary" href="/users?router={{ name | urlencode }}">All users</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/ports">Ports / SFP</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">PPPoE online</div>
+      <div class="stat-value">{{ users | length }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Interfaces</div>
+      <div class="stat-value">{{ ifaces | length }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">CPU</div>
+      <div class="stat-value">{{ info.cpu_load if info.cpu_load is not none else 'n/a' }}<span class="text-secondary fs-6">%</span></div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Memory free</div>
+      <div class="stat-value">{{ info.free_memory_percent if info.free_memory_percent is not none else 'n/a' }}<span class="text-secondary fs-6">%</span></div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">Uptime</div>
+      <div class="stat-value" style="font-size:1.2rem">{{ info.uptime_text or 'n/a' }}</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card stat-card"><div class="card-body py-2">
+      <div class="text-secondary small">API</div>
+      <div class="small"><code>{{ info.api_host or '-' }}:{{ info.api_port or '-' }}</code></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">System</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-40">Identity</th><td>{{ info.identity or '-' }}</td></tr>
+            <tr><th>Version</th><td>{{ info.version or '-' }}</td></tr>
+            <tr><th>Board</th><td>{{ info.board_name or '-' }}</td></tr>
+            <tr><th>Architecture</th><td>{{ info.architecture or '-' }}</td></tr>
+            <tr><th>CPU cores / load</th><td>{{ info.cpu_count or '-' }} / {{ info.cpu_load if info.cpu_load is not none else '-' }}%</td></tr>
+            <tr><th>Memory</th><td>{{ info.free_memory | bytes }} free of {{ info.total_memory | bytes }} ({{ info.free_memory_percent if info.free_memory_percent is not none else '-' }}%)</td></tr>
+            <tr><th>Uptime</th><td>{{ info.uptime_text or (info.uptime_seconds | uptime) }}</td></tr>
+            <tr><th>Last poll</th><td class="small text-secondary">{{ status.last_run | local if status and status.last_run else 'n/a' }}</td></tr>
+            {% if status and status.error %}<tr><th>Error</th><td class="small text-danger">{{ status.error }}</td></tr>{% endif %}
+          </tbody>
+        </table>
+        {% if info.pppoe_servers %}
+          <hr class="my-2">
+          <div class="small text-secondary mb-1">PPPoE servers &rarr; router interface</div>
+          <table class="table table-sm mb-0">
+            <tbody>
+            {% for s in info.pppoe_servers %}
+              <tr>
+                <td class="small">{{ s.service_name or '-' }}</td>
+                <td class="small"><code>{{ s.interface }}</code></td>
+                <td class="small text-secondary text-end">{{ 'VLAN ' ~ s.vlan_id if s.vlan_id else '' }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span>Interfaces</span>
+        <span class="small text-secondary">{{ ifaces | length }} monitored</span>
+      </div>
+      <div class="table-responsive" style="max-height: 420px; overflow-y:auto">
+        <table class="table table-sm table-hover align-middle mb-0">
+          <thead class="table-light" style="position: sticky; top: 0">
+            <tr><th>Name</th><th>Type</th><th>VLAN</th><th>State</th>
+              <th class="text-end">Rx</th><th class="text-end">Tx</th>
+              <th class="text-end">SFP rx</th><th class="text-end">SFP tx</th><th class="text-end">SFP temp</th></tr>
+          </thead>
+          <tbody>
+          {% for i in ifaces %}
+            <tr class="{{ 'table-secondary' if i.disabled else '' }}">
+              <td>{{ i.name }}</td>
+              <td class="small text-secondary">{{ i.iface_type or '-' }}</td>
+              <td class="small">{{ i.vlan_id or '-' }}</td>
+              <td>
+                {% if i.disabled %}<span class="badge bg-secondary">disabled</span>
+                {% elif i.running %}<span class="badge state-up">running</span>
+                {% else %}<span class="badge state-down">down</span>{% endif %}
+              </td>
+              <td class="text-end">{{ i.rx_bps | bps }}</td>
+              <td class="text-end">{{ i.tx_bps | bps }}</td>
+              <td class="text-end">{{ i.sfp_rx_power_dbm | dbm }}</td>
+              <td class="text-end">{{ i.sfp_tx_power_dbm | dbm }}</td>
+              <td class="text-end">{{ i.sfp_temperature_c if i.sfp_temperature_c is not none else '-' }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="9" class="text-secondary">No interfaces collected yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h6 class="mt-4"><i class="bi bi-people"></i> PPPoE users on this router <span class="text-secondary small">({{ users | length }} shown)</span></h6>
+<div class="table-responsive">
+  <table class="table table-sm table-hover table-striped align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>User</th><th>MikroTik iface</th><th>IP</th><th>MAC (caller-id)</th>
+        <th class="text-end">Uptime</th><th>ONU</th>
+        <th class="text-end">Rx dBm</th><th class="text-end">In</th><th class="text-end">Out</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in users[:500] %}
+      <tr>
+        <td><a href="/user?router={{ u.router_name }}&name={{ u.name | urlencode }}">{{ u.name }}</a></td>
+        <td class="small">{% if u.access_iface %}<code>{{ u.access_iface }}</code>{% else %}<span class="text-secondary">-</span>{% endif %}</td>
+        <td>{{ u.address or '-' }}</td>
+        <td class="small text-secondary">{{ u.caller_id or '-' }}</td>
+        <td class="text-end">{{ u.uptime_seconds | uptime }}</td>
+        <td>{% if u.onu_name %}<a href="/onu?olt={{ u.onu_olt_name }}&ifindex={{ u.onu_ifindex }}">{{ u.onu_name }}</a>{% else %}<span class="text-secondary">-</span>{% endif %}</td>
+        <td class="text-end {{ 'power-weak' if u.rx_power_dbm is not none and u.rx_power_dbm <= rx_low }}">{{ u.rx_power_dbm | dbm }}</td>
+        <td class="text-end">{{ u.bytes_in | bytes }}</td>
+        <td class="text-end">{{ u.bytes_out | bytes }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9" class="text-secondary">No online users.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% if users | length > 500 %}
+  <p class="small text-secondary">Showing the first 500 of {{ users | length }}. <a href="/users?router={{ name | urlencode }}">See all</a>.</p>
+{% endif %}
+
+{% endblock %}

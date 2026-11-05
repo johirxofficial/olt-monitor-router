@@ -1,0 +1,211 @@
+# ============================================================================
+#  olt-monitor-router  ::  main configuration (template)
+#
+#  The installer copies this file to config/config.yaml on a new machine.
+#  Edit the copy - never edit this template in a running installation.
+#
+#  What this project polls:
+#    * VSOL V1600D EPON OLT       over SNMP v2c  -> ports, PON, ONU, optical dBm
+#    * MikroTik RouterOS          over API       -> PPPoE users, uptime, traffic
+#
+#  Any string value may reference an environment variable as "${VAR_NAME}", or
+#  "${VAR_NAME:default}" to fall back when it is not set.  Values come from the
+#  ".env" file and the OS environment.
+#
+#  ---------------------------------------------------------------------------
+#  ONE device of each kind (what you have now):
+#
+#      olt:
+#        host: 192.0.2.10
+#      router:
+#        host: 198.51.100.1
+#
+#  MANY devices - use the plural keys instead (and give each a unique name,
+#  because the name is what ties a row to its device in the database):
+#
+#      olts:
+#        - name: OLT-Core
+#          host: 192.0.2.10
+#          community: your-community
+#        - name: OLT-Branch-2
+#          host: 192.0.2.11
+#          community: your-community
+#      routers:
+#        - name: MikroTik-Core
+#          host: 198.51.100.1
+#          api_port: 8728
+#          username: monitor
+#          password: "secret"
+#
+#  Anything you leave out of an entry is taken from the "olt:" / "router:"
+#  block below (or from the built-in defaults), so the two styles can be mixed.
+# ============================================================================
+
+app:
+  title: "OLT + Router Monitor"
+  host: 0.0.0.0                # web bind address
+  port: "${APP_PORT:5002}"     # web port -> change it in Settings, not here
+  timezone: "Asia/Dhaka"
+  log_level: "INFO"            # DEBUG | INFO | WARNING | ERROR
+  refresh_seconds: 30          # dashboard auto-refresh interval
+
+database:
+  # -------------------------------------------------------------------------
+  #  MySQL 8 (all measurements, devices, alerts and history are stored here)
+  #
+  #  One-time setup (creates the database + user + tables):
+  #      python3 tools/setup_mysql.py
+  #  Credentials come from .env (DB_*), so no password is written in git.
+  # -------------------------------------------------------------------------
+  host: "${DB_HOST:127.0.0.1}"
+  port: "${DB_PORT:3306}"
+  name: "${DB_NAME:olt_monitor}"
+  user: "${DB_USER:olt_monitor}"
+  password: "${DB_PASSWORD}"
+  charset: "utf8mb4"
+
+  # local scratch dir: encryption key + forwarding-table cache (not data)
+  path: "data/olt_monitor.db"
+  keep_history_days: 30        # history rows older than this are pruned
+  history_every_n_polls: 5     # store 1 history row every N polls (1 = every poll)
+
+polling:
+  olt_interval_seconds: 120    # an OLT poll takes ~35-70s (optical + MAC tables)
+  router_interval_seconds: 30
+  snmp_max_repetitions: 25     # GETBULK chunk size (v2c only)
+
+# ---------------------------------------------------------------------------
+#  OLT  ::  SNMP
+# ---------------------------------------------------------------------------
+olt:
+  enabled: true
+  name: "OLT-1"
+  host: "${OLT_HOST:192.0.2.10}"
+  snmp_port: 161
+  snmp_version: "2c"           # "1" or "2c"   (use the Devices page for SNMPv3)
+  community: "${OLT_COMMUNITY:your-community}"
+  timeout_seconds: 4
+  retries: 2
+
+  # How to tell ports / PON ports / ONUs / VLANs apart, based on interface names
+  # (VSOL V1600D naming:  GE0/1..GE0/16, EPON0/1..EPON0/8, EPON01ONU1.., vlan1532)
+  classify:
+    uplink_regex: '^GE\d*/\d+$'
+    pon_regex: '^EPON\d*/\d+$'
+    onu_regex: '^EPON(\d+)ONU(\d+)$'
+    vlan_regex: '^vlan\d+$'
+
+  # ---- OIDs: MIB-2 (works on every OLT) + the vendor defaults below ----
+  oids:
+    sys_descr:          '1.3.6.1.2.1.1.1.0'
+    sys_object_id:      '1.3.6.1.2.1.1.2.0'
+    sys_uptime:         '1.3.6.1.2.1.1.3.0'
+    sys_contact:        '1.3.6.1.2.1.1.4.0'
+    sys_name:           '1.3.6.1.2.1.1.5.0'
+    sys_location:       '1.3.6.1.2.1.1.6.0'
+    if_number:          '1.3.6.1.2.1.2.1.0'
+    if_descr:           '1.3.6.1.2.1.2.2.1.2'
+    if_admin_status:    '1.3.6.1.2.1.2.2.1.7'
+    if_oper_status:     '1.3.6.1.2.1.2.2.1.8'
+    if_in_errors:       '1.3.6.1.2.1.2.2.1.14'
+    if_out_errors:      '1.3.6.1.2.1.2.2.1.20'
+    if_name:            '1.3.6.1.2.1.31.1.1.1.1'
+    if_hc_in_octets:    '1.3.6.1.2.1.31.1.1.1.6'
+    if_hc_out_octets:   '1.3.6.1.2.1.31.1.1.1.10'
+    if_alias:           '1.3.6.1.2.1.31.1.1.1.18'
+
+  # -------------------------------------------------------------------------
+  #  Subscriber MAC table (bridge forwarding table)
+  #
+  #  A MikroTik PPPoE "caller-id" is the CUSTOMER'S ROUTER MAC, not the ONU's,
+  #  so the only reliable way to link a user to an ONU is to look that MAC up in
+  #  the OLT's forwarding table - the OLT learned it behind the ONU's port.
+  #
+  #  The walk is expensive (thousands of rows), so it runs every N polls and the
+  #  result is reused in between.
+  # -------------------------------------------------------------------------
+  mac_table:
+    enabled: true
+    every_n_polls: 5
+    sources: ["dot1d", "dot1q"]   # standard BRIDGE-MIB and Q-BRIDGE-MIB
+    vendor_oid: null              # or a vendor table: MAC -> ... .<ifIndex>
+
+  # -------------------------------------------------------------------------
+  #  ONU optical tables
+  #
+  #  Do NOT fill these in by hand - run the auto-detector once:
+  #
+  #      cd ~/olt-monitor-router && source .venv/bin/activate
+  #      python3 tools/discover_olt.py --autoconfig
+  #
+  #  It walks the vendor MIB, guesses which column is rx power / tx power /
+  #  temperature / distance / MAC, and writes them to config/optical_oids.yaml.
+  #  That file is merged in over the values below, so this block stays readable
+  #  and any manual setting you make here wins.
+  #
+  #  `scale` converts the raw SNMP integer to dBm/°C/metres:  real = raw * scale
+  #  (0.01 when the device reports dBm x100, e.g. -2150 -> -21.50 dBm).
+  #
+  #  Anything left as null is simply skipped and the UI shows "n/a".
+  # -------------------------------------------------------------------------
+  onu_tables:
+    # Column whose value equals the ONU interface name (used to join the
+    # optical table onto the ifName-based ONU list). Leave null to assume the
+    # table index (or its last sub-identifier) IS the interface index.
+    key_oid: null
+    rx_power:    { oid: null, scale: 1.0 }   # ONU receive power  (dBm)
+    tx_power:    { oid: null, scale: 1.0 }   # ONU transmit power (dBm)
+    olt_rx:      { oid: null, scale: 1.0 }   # OLT receive power  (dBm)
+    temperature: { oid: null, scale: 1.0 }   # ONU temperature    (C)
+    distance:    { oid: null, scale: 1.0 }   # ONU distance       (m)
+    mac:         { oid: null, scale: 1.0 }   # ONU MAC address
+
+# ---------------------------------------------------------------------------
+#  MikroTik RouterOS  ::  API
+# ---------------------------------------------------------------------------
+router:
+  enabled: true
+  name: "MikroTik"
+  host: "${ROUTER_HOST:198.51.100.1}"
+  api_port: "${ROUTER_API_PORT:8728}"   # 8728 = plain, 8729 = api-ssl
+  use_tls: false               # set true to use api-ssl
+  verify_tls: false            # RouterOS usually has a self-signed cert
+  username: "${ROUTER_USER}"
+  password: "${ROUTER_PASSWORD}"
+  timeout_seconds: 10
+
+  # Interfaces monitored for throughput and (optionally) SFP optical dBm
+  uplink_interfaces:
+    - "ether1"
+
+  sfp_monitor: true            # /interface/ethernet/monitor  -> sfp-rx-power etc.
+  monitor_traffic: true        # /interface/monitor-traffic   -> live rx/tx bps
+  pppoe: true                  # /ppp/active/print            -> PPPoE sessions
+  dhcp_leases: true            # /ip/dhcp-server/lease/print  -> user -> MAC map
+
+# ---------------------------------------------------------------------------
+#  Correlating a PPPoE user (RouterOS) with an ONU (OLT)
+#  A MikroTik PPPoE session does not report dBm - the dBm belongs to the ONU,
+#  so we join the two and show the ONU's optical values next to the user.
+# ---------------------------------------------------------------------------
+correlate:
+  match_by_mac_table: true     # caller-id MAC found in the OLT forwarding table
+  match_by_mac: true           # PPPoE caller-id (MAC) == ONU MAC
+  match_by_name_contains: true # username appears inside the ONU interface name
+  match_by_arp: true           # user IP -> ARP MAC -> FDB / ONU MAC
+  # Or an exact name pattern, e.g. "pppoe-{user}" / "ONU-{user}".
+  # {user} and {USER} are replaced by the PPPoE username. Empty = disabled.
+  onu_name_template: ""
+
+# ---------------------------------------------------------------------------
+#  Alerts
+# ---------------------------------------------------------------------------
+alerts:
+  enabled: true
+  alert_device_down: true            # OLT / router unreachable
+  onu_rx_power_low_dbm: -27.0        # warning  (ONU rx weaker than this)
+  onu_rx_power_critical_dbm: -30.0   # critical
+  onu_rx_power_high_dbm: -3.0        # too hot / too close
+  port_traffic_high_mbps: 900.0      # uplink saturation warning
+  router_cpu_high_percent: 85.0
+  router_free_memory_low_percent: 10.0

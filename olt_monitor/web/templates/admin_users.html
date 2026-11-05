@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% block title %}Web users - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h5 class="mb-0"><i class="bi bi-person-gear"></i> Web users <span class="text-secondary fs-6">({{ users | length }})</span></h5>
+  <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#user-create">
+    <i class="bi bi-plus-lg"></i> New user
+  </button>
+</div>
+
+{% if msg %}<div class="alert alert-success py-2 small">{{ msg }}</div>{% endif %}
+{% if err %}<div class="alert alert-danger py-2 small">{{ err }}</div>{% endif %}
+
+<div class="alert alert-info py-2 small">
+  <i class="bi bi-shield-check"></i>
+  <strong>viewer</strong> is read-only. <strong>manager</strong> can manage devices and poll.
+  <strong>super admin</strong> can do everything, including this page, SQL and the developer page.
+  Extra permissions can be switched on or off per account with the
+  <span class="badge bg-light text-dark border">Permissions</span> button.
+  The system always keeps at least one active super admin.
+</div>
+
+<div class="card mb-4">
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>User</th><th>Role</th><th>Extra permissions</th><th>Email</th><th>State</th>
+          <th>Created</th><th>Last login</th><th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in users %}
+        <tr class="{{ '' if u.active else 'table-secondary' }}">
+          <td>
+            <strong>{{ u.username }}</strong>
+            {% if u.id == user.id %}<span class="badge bg-light text-secondary">you</span>{% endif %}
+            {% if u.display_name and u.display_name != u.username %}
+            <div class="small text-secondary">{{ u.display_name }}</div>
+            {% endif %}
+          </td>
+          <td>
+            <form method="post" action="/admin/users/{{ u.id }}/role" class="d-flex gap-1">
+              <select class="form-select form-select-sm" name="role" style="width:auto"
+                      onchange="this.form.submit()" {{ 'disabled' if u.id == user.id }}>
+                {% for r in roles %}
+                <option value="{{ r.key }}" {{ 'selected' if u.role == r.key }}>{{ r.label }}</option>
+                {% endfor %}
+              </select>
+              <noscript><button class="btn btn-sm btn-outline-secondary">Set</button></noscript>
+            </form>
+          </td>
+          <td class="small">
+            {% if u.role == 'superadmin' %}
+              <span class="badge bg-primary-subtle text-primary-emphasis" title="A super admin bypasses every permission flag">all areas</span>
+            {% else %}
+              {% set ns = namespace(count=0) %}
+              {% for p in permission_meta %}
+                {% if u[p.key] %}
+                  {% set ns.count = ns.count + 1 %}
+                  <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ p.label }}</span>
+                {% endif %}
+              {% endfor %}
+              {% if ns.count == 0 %}<span class="badge bg-light text-secondary border">view only</span>{% endif %}
+            {% endif %}
+          </td>
+          <td class="small">{{ u.email or '-' }}</td>
+          <td>
+            {% if u.active %}<span class="badge bg-success">active</span>
+            {% else %}<span class="badge bg-secondary">disabled</span>{% endif %}
+          </td>
+          <td class="small text-secondary">{{ u.created_at | local if u.created_at else '-' }}</td>
+          <td class="small text-secondary">{{ u.last_login_at | local if u.last_login_at else 'never' }}</td>
+          <td class="text-end text-nowrap">
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    data-bs-toggle="modal" data-bs-target="#pw-{{ u.id }}">Password</button>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2"
+                    data-bs-toggle="modal" data-bs-target="#perm-{{ u.id }}"
+                    {{ 'disabled' if u.role == 'superadmin' or u.id == user.id }}
+                    title="{{ 'super admin always has every permission' if u.role == 'superadmin' else ('cannot change your own permissions' if u.id == user.id else 'enable or disable extra permissions') }}">
+              Permissions
+            </button>
+
+            {% if u.id != user.id %}
+            <form method="post" action="/admin/users/{{ u.id }}/toggle" class="d-inline">
+              <button class="btn btn-sm {{ 'btn-outline-warning' if u.active else 'btn-outline-success' }} py-0 px-2">
+                {{ 'Disable' if u.active else 'Enable' }}
+              </button>
+            </form>
+            <form method="post" action="/admin/users/{{ u.id }}/delete" class="d-inline"
+                  onsubmit="return confirm('Delete user {{ u.username }}? This cannot be undone.')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2">Delete</button>
+            </form>
+            {% else %}
+            <span class="small text-secondary">current session</span>
+            {% endif %}
+          </td>
+        </tr>
+
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block modals %}
+{# password reset modals (kept outside the table for valid HTML) #}
+{% for u in users %}
+<div class="modal fade" id="pw-{{ u.id }}" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <form class="modal-content" method="post" action="/admin/users/{{ u.id }}/password">
+        <div class="modal-header">
+          <h6 class="modal-title">Reset password &mdash; {{ u.username }}</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small">New password</label>
+            <input class="form-control" name="password" type="password" minlength="8"
+                   autocomplete="new-password" required>
+          </div>
+          <div>
+            <label class="form-label small">Repeat password</label>
+            <input class="form-control" name="password2" type="password" minlength="8"
+                   autocomplete="new-password" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-sm btn-warning">Set password</button>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endfor %}
+
+{# per-user extra-permission modals #}
+{% for u in users %}
+{% if u.role != 'superadmin' %}
+<div class="modal fade" id="perm-{{ u.id }}" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="/admin/users/{{ u.id }}/permissions">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-shield-lock"></i> Permissions &mdash; {{ u.username }}</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-secondary">
+          Role <strong>{{ u.role_label }}</strong> decides the baseline. These switches add
+          (or remove) access to individual areas. Monitoring pages stay read-only unless the
+          matching switch is enabled.
+        </p>
+        {% for p in permission_meta %}
+        <div class="form-check form-switch mb-2">
+          <input class="form-check-input" type="checkbox" role="switch"
+                 id="perm-{{ u.id }}-{{ p.key }}" name="{{ p.key }}"
+                 {{ 'checked' if u[p.key] }}>
+          <label class="form-check-label" for="perm-{{ u.id }}-{{ p.key }}">
+            <strong>{{ p.label }}</strong>
+            <div class="small text-secondary">{{ p.hint }}</div>
+          </label>
+        </div>
+        {% endfor %}
+        {% if u.id == user.id %}
+        <div class="alert alert-warning py-1 small mb-0">
+          This is your own account: removing <strong>Web users</strong> here would close this page for you.
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm btn-primary">Save permissions</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<div class="modal fade" id="user-create" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <form class="modal-content" method="post" action="/admin/users/create">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-person-plus"></i> New web user</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body row g-3">
+        <div class="col-md-6">
+          <label class="form-label small">Username *</label>
+          <input class="form-control" name="username" required minlength="3" maxlength="32"
+                 placeholder="noc-viewer">
+          <div class="form-text">3–32 chars: letters, digits, <code>. _ -</code></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Role *</label>
+          <select class="form-select" name="role" id="create-role">
+            {% for r in roles %}
+            <option value="{{ r.key }}" {{ 'selected' if r.key == 'viewer' }}>{{ r.label }} &mdash; {{ r.hint }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Password *</label>
+          <input class="form-control" name="password" type="password" minlength="8"
+                 autocomplete="new-password" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Repeat password *</label>
+          <input class="form-control" name="password2" type="password" minlength="8"
+                 autocomplete="new-password" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Display name</label>
+          <input class="form-control" name="display_name" placeholder="NOC wall display">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small">Email (optional)</label>
+          <input class="form-control" name="email" type="email">
+        </div>
+
+        <div class="col-12">
+          <hr class="my-1">
+          <div class="d-flex justify-content-between align-items-center">
+            <label class="form-label small mb-0"><i class="bi bi-shield-lock"></i> Extra permissions</label>
+            <span class="small text-secondary" id="create-perm-note">viewer: monitoring pages only</span>
+          </div>
+          <input type="hidden" name="permissions_set" value="1">
+          <div class="row g-2 mt-1" id="create-permissions">
+            {% for p in permission_meta %}
+            <div class="col-md-6">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" role="switch"
+                       id="create-{{ p.key }}" name="{{ p.key }}"
+                       {{ 'checked' if p.key == 'perm_tools' }}>
+                <label class="form-check-label small" for="create-{{ p.key }}">
+                  <strong>{{ p.label }}</strong><br>
+                  <span class="text-secondary">{{ p.hint }}</span>
+                </label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm btn-primary">Create user</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Keep the permission switches in step with the role the admin picked, so a
+  // new manager starts with device access and a viewer starts read-only.
+  var role = document.getElementById('create-role');
+  var box = document.getElementById('create-permissions');
+  var note = document.getElementById('create-perm-note');
+  if (!role || !box) { return; }
+  var defaults = {{ {'viewer': ['perm_tools'], 'manager': ['perm_devices', 'perm_tools'], 'superadmin': []} | tojson }};
+  function apply() {
+    var value = role.value;
+    var keys = defaults[value] || [];
+    box.querySelectorAll('input[type=checkbox]').forEach(function (input) {
+      input.checked = keys.indexOf(input.name) !== -1;
+      input.disabled = value === 'superadmin';
+    });
+    if (note) {
+      note.textContent = value === 'superadmin'
+        ? 'super admin always has every permission'
+        : (keys.length ? value + ': ' + keys.length + ' enabled by default' : value + ': monitoring pages only');
+    }
+  }
+  role.addEventListener('change', apply);
+  apply();
+})();
+</script>
+
+{% endblock %}

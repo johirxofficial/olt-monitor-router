@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+{% block title %}Settings - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h5 class="mb-0"><i class="bi bi-gear"></i> Settings</h5>
+  <div class="d-flex gap-2">
+    <a class="btn btn-sm btn-outline-secondary" href="/admin/users"><i class="bi bi-person-gear"></i> Web users ({{ users_count }})</a>
+    <a class="btn btn-sm btn-outline-secondary" href="/developer"><i class="bi bi-code-slash"></i> Developer</a>
+  </div>
+</div>
+
+{% if msg %}<div class="alert alert-success py-2 small">{{ msg }}</div>{% endif %}
+{% if err %}<div class="alert alert-danger py-2 small">{{ err }}</div>{% endif %}
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-site" type="button"><i class="bi bi-globe2"></i> Site</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-db" type="button"><i class="bi bi-database"></i> Database</button></li>
+  {% if permissions.perm_sql %}
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-backup" type="button"><i class="bi bi-archive"></i> Backup</button></li>
+  {% endif %}
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-status" type="button"><i class="bi bi-activity"></i> Status</button></li>
+</ul>
+
+<div class="tab-content">
+
+  {# ============================ SITE ============================ #}
+  <div class="tab-pane fade show active" id="tab-site">
+    <form method="post" action="/settings/site">
+      <div class="card mb-3">
+        <div class="card-header">Site identity</div>
+        <div class="card-body row g-3">
+          <div class="col-md-6">
+            <label class="form-label small" for="site_name">Site name</label>
+            <input class="form-control" id="site_name" name="site_name" value="{{ site.site_name }}" required maxlength="120">
+            <div class="form-text">Navbar, browser title and About page.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small" for="tagline">Tagline</label>
+            <input class="form-control" id="tagline" name="tagline" value="{{ site.tagline }}" maxlength="180">
+            <div class="form-text">Shown under the brand and on the About page.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small" for="footer_text">Footer text</label>
+            <input class="form-control" id="footer_text" name="footer_text" value="{{ site.footer_text }}" maxlength="120">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small" for="support_email">Support email</label>
+            <input class="form-control" id="support_email" name="support_email" type="email" value="{{ site.support_email }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small" for="refresh_seconds">Auto-refresh (seconds)</label>
+            <input class="form-control" id="refresh_seconds" name="refresh_seconds" type="number"
+                   min="5" max="3600" value="{{ site.refresh_seconds }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label small" for="about_text">About page text</label>
+            <textarea class="form-control font-monospace" id="about_text" name="about_text" rows="8"
+                      placeholder="Extra paragraphs for /about. Basic HTML is allowed (admin only).">{{ site.about_text }}</textarea>
+            <div class="form-text">Rendered as HTML on the public About page. Leave empty for the default text.</div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary btn-sm"><i class="bi bi-check2"></i> Save site settings</button>
+        </div>
+      </div>
+    </form>
+
+    <form method="post" action="/settings/port">
+      <div class="card">
+        <div class="card-header">Web port</div>
+        <div class="card-body row g-3 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small" for="web_port">Port</label>
+            <input class="form-control" id="web_port" name="web_port" type="number" min="1024" max="65535"
+                   value="{{ web_port }}" required>
+          </div>
+          <div class="col-md-9">
+            <p class="small text-secondary mb-2">
+              Written to <code>{{ env_file }}</code> as <code>APP_PORT</code>.
+              Changing the port needs a restart:
+            </p>
+            <pre class="bg-body-secondary rounded p-2 small mb-0">systemctl --user restart olt-monitor-router</pre>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save port</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {# ========================== DATABASE ========================== #}
+  <div class="tab-pane fade" id="tab-db">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Active MySQL target</span>
+        <span class="badge bg-success-subtle text-success-emphasis">connected</span>
+      </div>
+      <div class="card-body">
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-35">Host</th><td><code>{{ target.host }}:{{ target.port }}</code></td></tr>
+            <tr><th>Database</th><td><code>{{ target.name }}</code></td></tr>
+            <tr><th>User</th><td><code>{{ target.user }}</code> <span class="text-secondary small">(password never shown)</span></td></tr>
+            <tr><th>DSN</th><td class="small"><code>{{ db_path }}</code></td></tr>
+            <tr><th>Env file</th><td class="small"><code>{{ env_file }}</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <form method="post" action="/settings/database">
+      <div class="card">
+        <div class="card-header">Remote MySQL connection</div>
+        <div class="card-body">
+          <p class="small text-secondary">
+            The database and app user must already exist on the target server, and the schema is
+            created automatically on the next start. Saving writes <code>.env</code> atomically
+            (a <code>.env.bak</code> copy is kept) and <strong>requires a restart</strong>.
+          </p>
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label small" for="db_host">Host</label>
+              <input class="form-control" id="db_host" name="db_host" value="{{ target.host }}" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small" for="db_port">Port</label>
+              <input class="form-control" id="db_port" name="db_port" type="number" value="{{ target.port }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small" for="db_name">Database</label>
+              <input class="form-control" id="db_name" name="db_name" value="{{ target.name }}" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small" for="db_user">User</label>
+              <input class="form-control" id="db_user" name="db_user" value="{{ target.user }}" required>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small" for="db_password">Password</label>
+              <input class="form-control" id="db_password" name="db_password" type="password"
+                     autocomplete="new-password" placeholder="leave blank = keep current">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-secondary w-100" id="test-db">Test</button>
+            </div>
+          </div>
+          <div id="db-result" class="small mt-2"></div>
+        </div>
+        <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+          <span class="small text-secondary">Restart after saving: <code>systemctl --user restart olt-monitor-router</code></span>
+          <button class="btn btn-primary btn-sm"><i class="bi bi-save"></i> Save connection</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {# =========================== BACKUP =========================== #}
+  {% if permissions.perm_sql %}
+  <div class="tab-pane fade" id="tab-backup">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-download"></i> Export site configuration</div>
+          <div class="card-body">
+            <p class="small text-secondary">
+              Download one JSON file containing the complete site setup:
+              <strong>devices and device credentials</strong>, site settings and
+              <strong>web users</strong> (roles, permissions, password hashes).
+            </p>
+            <a class="btn btn-primary btn-sm" href="/settings/export-config">
+              <i class="bi bi-download"></i> Download site config (.json)
+            </a>
+            <div class="alert alert-info py-2 small mt-3 mb-0">
+              <i class="bi bi-info-circle"></i>
+              <strong>No monitoring data is included.</strong>
+              ONU details, optical dBm, PPPoE sessions, forwarding tables, alerts
+              and all history stay on this server.
+            </div>
+            <p class="small text-secondary mt-3 mb-0">
+              The file is portable to another installation; device secrets are
+              re-encrypted with that server's key on import. It still contains
+              sensitive credentials and password hashes, so keep it private.
+              Server-specific <code>.env</code> values (MySQL password, listening
+              port) are not included.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header"><i class="bi bi-upload"></i> Import site configuration</div>
+          <div class="card-body">
+            <div class="alert alert-warning py-2 small mb-3">
+              <i class="bi bi-exclamation-triangle"></i>
+              Import <strong>replaces devices, site settings and web users</strong>,
+              and clears the collected monitoring data. Polling refills ONU,
+              PPPoE and dBm data automatically within the next 10-minute cycle.
+            </div>
+            <form method="post" action="/settings/import-config" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label class="form-label small" for="config-file">Site config file</label>
+                <input class="form-control form-control-sm" id="config-file" name="file" type="file"
+                       accept=".json,application/json" required>
+                <div class="form-text">Exported by this app with the file name <code>site-config-*.json</code>.</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small" for="config-confirm">Type <code>IMPORT</code> to confirm</label>
+                <input class="form-control form-control-sm" id="config-confirm" name="confirm" required
+                       pattern="[Ii][Mm][Pp][Oo][Rr][Tt]" placeholder="IMPORT">
+              </div>
+              <button class="btn btn-danger btn-sm"><i class="bi bi-upload"></i> Import config</button>
+            </form>
+            <p class="small text-secondary mt-3 mb-0">
+              Take a fresh export before importing. The admin performing the
+              import keeps their session when that account exists in the file.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2 mt-4 mb-2">
+      <h6 class="mb-0"><i class="bi bi-database-gear"></i> Advanced: full SQL dump</h6>
+      <span class="badge text-bg-secondary">optional</span>
+    </div>
+    <p class="small text-secondary">
+      A raw MySQL dump for migration or disaster recovery. It includes live
+      monitoring rows, so it is much larger and is <em>not</em> the normal
+      backup - use the site config above for copying a setup.
+    </p>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header">Export SQL</div>
+          <div class="card-body">
+            <p class="small text-secondary">
+              Portable MySQL dump with <code>DROP TABLE</code> + <code>CREATE TABLE</code> + inserts.
+              Restore it here or with <code>mysql &lt; dump.sql</code>.
+            </p>
+            <div class="d-grid gap-2">
+              <a class="btn btn-outline-secondary btn-sm" href="/settings/export?history=0">
+                <i class="bi bi-download"></i> Download current state (.zip)
+              </a>
+              <a class="btn btn-outline-secondary btn-sm" href="/settings/export?history=1">
+                <i class="bi bi-download"></i> Download with all history (.zip)
+              </a>
+            </div>
+            <p class="small text-secondary mt-2 mb-0">
+              Current state = devices, latest snapshots, alerts, users, settings. History can be
+              hundreds of MB; it is zipped before download.
+            </p>
+            <p class="small text-secondary mb-0">
+              Backups on disk: <strong>{{ backups | length }}</strong> &middot; free space: <strong>{{ free_mb }} MB</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card h-100">
+          <div class="card-header">Import SQL</div>
+          <div class="card-body">
+            <div class="alert alert-warning py-2 small mb-3">
+              <i class="bi bi-exclamation-triangle"></i>
+              Import replaces the tables contained in the dump. Take an export first.
+            </div>
+            <form method="post" action="/settings/import" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label class="form-label small" for="sql-file">SQL file</label>
+                <input class="form-control form-control-sm" id="sql-file" name="file" type="file"
+                       accept=".sql,.txt,.gz" required>
+              </div>
+              <div class="mb-3">
+                <label class="form-label small" for="confirm">Type <code>IMPORT</code> to confirm</label>
+                <input class="form-control form-control-sm" id="confirm" name="confirm" required
+                       pattern="[Ii][Mm][Pp][Oo][Rr][Tt]" placeholder="IMPORT">
+              </div>
+              <button class="btn btn-danger btn-sm"><i class="bi bi-upload"></i> Run import</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header d-flex justify-content-between">
+        <span>Recent backups</span>
+        <span class="small text-secondary">in <code>backups/</code></span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light"><tr><th>File</th><th class="text-end">Size</th><th>Created (UTC)</th><th></th></tr></thead>
+          <tbody>
+          {% for b in backups %}
+            <tr>
+              <td class="small"><code>{{ b.name }}</code></td>
+              <td class="text-end small">{{ b.bytes | bytes }}</td>
+              <td class="small text-secondary">{{ b.when }}</td>
+              <td class="text-end"><a class="btn btn-sm btn-outline-secondary py-0 px-2" href="/settings/backups/{{ b.name }}">Download</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4" class="text-secondary small">No backups yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# =========================== STATUS =========================== #}
+  <div class="tab-pane fade" id="tab-status">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card h-100">
+          <div class="card-header">Runtime status</div>
+          <div class="card-body">
+            <table class="table table-sm mb-0">
+              <tbody>
+                <tr><th class="w-40">Started</th><td>{{ status.started_at | local if status.started_at else 'n/a' }}</td></tr>
+                {% for name, olt in (status.olts or {}).items() %}
+                <tr>
+                  <th>{{ name }} <span class="text-secondary small">(OLT)</span></th>
+                  <td>
+                    {% if olt.ok is not none %}
+                      <span class="badge {{ 'bg-success' if olt.ok else 'bg-danger' }}">{{ 'ok' if olt.ok else 'failed' }}</span>
+                      <span class="small text-secondary">{{ olt.last_run | local }} &middot; {{ olt.duration_ms }} ms &middot;
+                      {{ olt.ports }} ports / {{ olt.onus }} ONUs / {{ olt.mac_entries }} MACs</span>
+                      {% if olt.error %}<div class="small text-danger">{{ olt.error }}</div>{% endif %}
+                    {% else %}<span class="text-secondary">no poll yet</span>{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+                {% for name, rt in (status.routers or {}).items() %}
+                <tr>
+                  <th>{{ name }} <span class="text-secondary small">(router)</span></th>
+                  <td>
+                    {% if rt.ok is not none %}
+                      <span class="badge {{ 'bg-success' if rt.ok else 'bg-danger' }}">{{ 'ok' if rt.ok else 'failed' }}</span>
+                      <span class="small text-secondary">{{ rt.last_run | local }} &middot; {{ rt.duration_ms }} ms &middot;
+                      {{ rt.users }} users / {{ rt.interfaces }} interfaces</span>
+                      {% if rt.error %}<div class="small text-danger">{{ rt.error }}</div>{% endif %}
+                    {% else %}<span class="text-secondary">no poll yet</span>{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+                <tr><th>Correlation</th>
+                  <td class="small">
+                    {% if status.correlation %}
+                      {% for key, value in status.correlation.items() %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ key }}: {{ value }}</span> {% endfor %}
+                    {% else %}n/a{% endif %}
+                  </td></tr>
+                <tr><th>Alerts</th>
+                  <td>
+                    {% if status.alerts %}
+                      <span class="badge bg-danger">{{ status.alerts.critical }}</span>
+                      <span class="badge bg-warning text-dark">{{ status.alerts.warning }}</span>
+                      <span class="badge bg-info text-dark">{{ status.alerts.info }}</span>
+                    {% else %}n/a{% endif %}
+                  </td></tr>
+                <tr><th>Database</th><td class="small"><code>{{ db_path }}</code></td></tr>
+                <tr><th>Optical OIDs</th>
+                  <td>
+                    {% if optical_configured %}<span class="badge bg-success">configured</span>
+                    {% else %}<span class="badge bg-warning text-dark">not configured</span>{% endif %}
+                    <span class="small text-secondary">run <code>tools/discover_olt.py --autoconfig</code></span>
+                  </td></tr>
+              </tbody>
+            </table>
+            <p class="small text-secondary mb-0 mt-2">
+              Devices are managed on the <a href="/devices">Devices</a> page. Poll intervals:
+              OLT {{ cfg.polling.olt_interval_seconds }}s &middot; router {{ cfg.polling.router_interval_seconds }}s.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card h-100">
+          <div class="card-header d-flex justify-content-between">
+            <span>Recent admin activity</span>
+            <a class="small" href="/developer#audit">all</a>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead class="table-light"><tr><th>When</th><th>User</th><th>Action</th></tr></thead>
+              <tbody>
+              {% for row in audit %}
+                <tr>
+                  <td class="small text-secondary">{{ row.ts | local if row.ts else '' }}</td>
+                  <td class="small">{{ row.username }}</td>
+                  <td class="small"><code>{{ row.action }}</code>
+                    {% if row.detail %}<div class="text-secondary small">{{ row.detail | truncate(70) }}</div>{% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr><td colspan="3" class="small text-secondary">No activity yet.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const testButton = document.getElementById('test-db');
+if (testButton) {
+  testButton.addEventListener('click', async () => {
+    const box = document.getElementById('db-result');
+    testButton.disabled = true;
+    box.className = 'small mt-2 text-secondary';
+    box.textContent = 'connecting…';
+    try {
+      const response = await fetch('/api/admin/db/test', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          host: document.getElementById('db_host').value,
+          port: document.getElementById('db_port').value,
+          name: document.getElementById('db_name').value,
+          user: document.getElementById('db_user').value,
+          password: document.getElementById('db_password').value,
+        }),
+      });
+      const data = await response.json();
+      if (data.ok) {
+        box.className = 'small mt-2 text-success';
+        box.textContent = `connected: MySQL ${data.version}, ${data.tables} table(s) in “${data.database}”`;
+      } else {
+        box.className = 'small mt-2 text-danger';
+        box.textContent = data.error || 'connection failed';
+      }
+    } catch (error) {
+      box.className = 'small mt-2 text-danger';
+      box.textContent = String(error);
+    } finally {
+      testButton.disabled = false;
+    }
+  });
+}
+
+// keep the tab after a redirect that carries ?msg / ?err
+if (location.search.includes('err=') || location.search.includes('msg=')) {
+  // no-op: stay on the first tab
+}
+</script>
+{% endblock %}

@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - {{ app_title }}{% endblock %}
+{% block content %}
+
+<div class="card mb-3 border-primary-subtle">
+  <div class="card-body py-3">
+    <form method="get" action="/search" class="row g-2 align-items-center">
+      <div class="col-auto"><i class="bi bi-search fs-4 text-primary"></i></div>
+      <div class="col">
+        <input class="form-control form-control-lg" type="search" name="q"
+               placeholder="Search a PPPoE user, IP, MAC, ONU name, serial or PON&hellip;"
+               aria-label="Quick search" required autofocus>
+      </div>
+      <div class="col-auto"><button class="btn btn-primary btn-lg">Search</button></div>
+    </form>
+    <div class="small text-secondary mt-1">
+      One box for everything: <code>basar77@77</code>, <code>10.10.135.162</code>,
+      <code>AC:F9:70:C7:05:C0</code>, <code>pon1:44</code>, <code>PON1</code>,
+      an ONU serial or a model.
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-secondary small">ONUs</div>
+        <div class="stat-value">{{ data.totals.onu_up or 0 }}<span class="text-secondary fs-6">/{{ data.totals.onu_total or 0 }} up</span></div>
+        <div class="small">
+          <span class="badge bg-danger-subtle text-danger-emphasis">{{ data.totals.onu_down or 0 }} down</span>
+          <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ data.totals.onu_with_power or 0 }} with optical</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-secondary small">PPPoE users online</div>
+        <div class="stat-value">{{ data.users.online or 0 }}</div>
+        <div class="small text-secondary">
+          {{ data.users.matched or 0 }} linked to an ONU &middot;
+          <span class="{{ 'text-danger' if (data.users.weak or 0) > 0 }}">{{ data.users.weak or 0 }} weak optical</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-secondary small">PON ports up</div>
+        <div class="stat-value">{{ data.ports.pons_up or 0 }}<span class="text-secondary fs-6">/{{ data.ports.pons_total or 0 }}</span></div>
+        <div class="small text-secondary">uplinks up {{ data.ports.uplinks_up or 0 }}/{{ data.ports.uplinks_total or 0 }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card stat-card h-100">
+      <div class="card-body">
+        <div class="text-secondary small">Active alerts</div>
+        <div class="stat-value {{ 'text-danger' if data.alert_counts.critical else '' }}">{{ data.alert_total }}</div>
+        <div class="small">
+          <span class="badge bg-danger">{{ data.alert_counts.critical }}</span>
+          <span class="badge bg-warning text-dark">{{ data.alert_counts.warning }}</span>
+          <span class="badge bg-info text-dark">{{ data.alert_counts.info }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ------------------------------------------------------------------ #}
+{#  one card per OLT and per router                                     #}
+{# ------------------------------------------------------------------ #}
+<div class="row g-3 mb-3">
+  {% for olt in data.olts %}
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-hdd-rack"></i> OLT &middot; {{ olt.name }}</span>
+        <span class="d-flex gap-1 align-items-center">
+          {% if olt.health is defined and olt.health is not none %}
+            <span class="badge bg-{{ olt.health_grade if olt.health_grade != 'orange' else 'warning' }}"
+                  title="{{ olt.health_reasons | join(', ') if olt.health_reasons else '' }}">
+              health {{ olt.health }}
+            </span>
+          {% endif %}
+          {% if olt.ok %}<span class="badge bg-success">reachable</span>
+          {% elif olt.ok is none %}<span class="badge bg-secondary">waiting</span>
+          {% else %}<span class="badge bg-danger">unreachable</span>{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="mb-2 small text-secondary">
+          {{ olt.host or olt.payload.host or 'n/a' }} &middot; last poll {{ olt.updated_local }}
+          {% if olt.branch %} &middot; {{ olt.branch }}{% endif %}
+          <a class="ms-1" href="/olts">health overview</a>
+        </div>
+        {% if olt.error %}<div class="alert alert-danger py-2 small mb-2">{{ olt.error }}</div>{% endif %}
+        {% if olt.payload %}
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-35">Model</th><td>{{ olt.payload.sys_descr or 'n/a' }}
+              {% if olt.payload.brand_label %}<span class="badge bg-dark">{{ olt.payload.brand_label }}</span>{% endif %}
+              {% if olt.payload.pon_type %}<span class="badge bg-secondary">{{ olt.payload.pon_type | upper }}</span>{% endif %}
+            </td></tr>
+            <tr><th>Name</th><td>{{ olt.payload.sys_name or 'n/a' }}</td></tr>
+            <tr><th>Uptime</th><td>{{ olt.payload.sys_uptime_text or 'n/a' }}</td></tr>
+            <tr><th>Location</th><td>{{ olt.payload.sys_location or 'n/a' }}</td></tr>
+            <tr><th>Interfaces</th><td>{{ olt.payload.if_number or 'n/a' }}</td></tr>
+            <tr><th>MAC table</th><td>{{ olt.payload.mac_entries if olt.payload.mac_entries is not none else 'n/a' }} learned</td></tr>
+            <tr><th>Health</th><td>
+              {% if olt.health is defined and olt.health is not none %}
+                <strong>{{ olt.health }}</strong> ({{ olt.health_label }})
+                {% if olt.cpu_percent is not none %} &middot; CPU {{ olt.cpu_percent | round(1) }}%{% endif %}
+                {% if olt.memory_percent is not none %} &middot; RAM {{ olt.memory_percent | round(1) }}%{% endif %}
+                {% if olt.temperature_c is not none %} &middot; {{ olt.temperature_c | round(1) }} °C{% endif %}
+                {% if olt.snmp_rtt_ms is not none %} &middot; RTT {{ olt.snmp_rtt_ms }} ms{% endif %}
+              {% else %}n/a{% endif %}
+            </td></tr>
+            <tr><th>SNMP</th><td>v{{ olt.payload.snmp_version }} &middot;
+              community {{ 'set' if olt.payload.community_set else 'default' }}</td></tr>
+          </tbody>
+        </table>
+        {% endif %}
+        {% if olt.payload.optical_note %}
+          <div class="alert alert-warning py-2 small mt-2 mb-0">
+            <i class="bi bi-info-circle"></i> {{ olt.payload.optical_note }}
+            <a href="/settings">setup</a>
+          </div>
+        {% endif %}
+        {% if olt.payload.mac_table_note %}
+          <div class="alert alert-warning py-2 small mt-2 mb-0">
+            <i class="bi bi-info-circle"></i> {{ olt.payload.mac_table_note }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% for rt in data.routers %}
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-router"></i> Router &middot; {{ rt.name }}</span>
+        {% if rt.ok %}<span class="badge bg-success">connected</span>
+        {% elif rt.ok is none %}<span class="badge bg-secondary">waiting</span>
+        {% else %}<span class="badge bg-danger">unreachable</span>{% endif %}
+      </div>
+      <div class="card-body">
+        <div class="mb-2 small text-secondary">
+          {{ rt.host or rt.payload.api_host or 'n/a' }} &middot; last poll {{ rt.updated_local }}
+        </div>
+        {% if rt.error %}<div class="alert alert-danger py-2 small mb-2">{{ rt.error }}</div>{% endif %}
+        {% if rt.payload %}
+        <table class="table table-sm mb-0">
+          <tbody>
+            <tr><th class="w-35">Identity</th><td>{{ rt.payload.identity or 'n/a' }}</td></tr>
+            <tr><th>RouterOS</th><td>{{ rt.payload.version or 'n/a' }}</td></tr>
+            <tr><th>Board</th><td>{{ rt.payload.board_name or 'n/a' }}</td></tr>
+            <tr><th>Uptime</th><td>{{ rt.payload.uptime_text or 'n/a' }}</td></tr>
+            <tr><th>CPU</th><td>{{ rt.payload.cpu_load if rt.payload.cpu_load is not none else 'n/a' }}%</td></tr>
+            <tr><th>Free memory</th><td>{{ rt.payload.free_memory_percent if rt.payload.free_memory_percent is not none else 'n/a' }}%</td></tr>
+            <tr><th>API port</th><td>{{ rt.payload.api_port or 'n/a' }}</td></tr>
+          </tbody>
+        </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if not data.olts and not data.routers %}
+  <div class="col-12"><div class="alert alert-secondary">No devices configured.</div></div>
+  {% endif %}
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-diagram-3"></i> PON ports</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr>
+            {% if data.olt_names | length > 1 %}<th>OLT</th>{% endif %}
+            <th>PON</th><th class="text-end">ONUs</th><th class="text-end">Up</th><th class="text-end">Down</th><th class="text-end">Avg rx</th><th></th>
+          </tr></thead>
+          <tbody>
+          {% for row in data.pon_summary %}
+            <tr>
+              {% if data.olt_names | length > 1 %}<td class="small text-secondary">{{ row.olt_name }}</td>{% endif %}
+              <td><a href="/onus?olt={{ row.olt_name }}&pon={{ row.pon }}">EPON0/{{ row.pon }}</a></td>
+              <td class="text-end">{{ row.onus }}</td>
+              <td class="text-end text-success">{{ row.up }}</td>
+              <td class="text-end {{ 'text-danger' if row.down }}">{{ row.down }}</td>
+              <td class="text-end">{{ row.rx_avg | dbm if row.rx_avg is not none else 'n/a' }}</td>
+              <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="/onus?olt={{ row.olt_name }}&pon={{ row.pon }}">view</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="text-secondary">No ONUs found yet.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-graph-up"></i> ONU optical power (dBm)</div>
+      <div class="card-body">
+        <canvas id="powerChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="bi bi-arrow-left-right"></i> Uplink ports</div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead><tr>
+            {% if data.olt_names | length > 1 %}<th>OLT</th>{% endif %}
+            <th>Port</th><th>State</th><th class="text-end">In</th><th class="text-end">Out</th><th class="text-end">Errors</th>
+          </tr></thead>
+          <tbody>
+          {% for port in data.uplinks %}
+            <tr>
+              {% if data.olt_names | length > 1 %}<td class="small text-secondary">{{ port.olt_name }}</td>{% endif %}
+              <td>{{ port.if_name }}</td>
+              <td><span class="badge state-{{ port.oper_status | state }}">{{ port.oper_status | state }}</span></td>
+              <td class="text-end">{{ port.in_bps | bps }}</td>
+              <td class="text-end">{{ port.out_bps | bps }}</td>
+              <td class="text-end">{{ (port.in_errors or 0) + (port.out_errors or 0) }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="text-secondary">No uplink data.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-exclamation-triangle"></i> Alerts</span>
+        <a class="small" href="/alerts">view all</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <tbody>
+          {% for alert in data.alerts[:12] %}
+            <tr>
+              <td><span class="badge sev-{{ alert.severity }}">{{ alert.severity }}</span></td>
+              <td class="small">{{ alert.message }}</td>
+            </tr>
+          {% else %}
+            <tr><td class="text-secondary">No active alerts.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.POWER_DATA_URL = "/api/onu-power";
+</script>
+<script src="/static/js/dashboard.js?v={{ version }}"></script>
+{% endblock %}
