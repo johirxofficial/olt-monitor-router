@@ -504,6 +504,7 @@ check("an edit updates a field and keeps the rest",
 # a secret left empty on edit must keep the stored value (routers have a password)
 import json  # noqa: E402
 
+from olt_monitor.db import execute as _db_execute  # noqa: E402
 from olt_monitor.db import query as _db_query  # noqa: E402
 
 rtr = registry.create_device(
@@ -520,6 +521,19 @@ registry.delete_device(db_file, seed_cfg, rtr["id"])
 registry.set_enabled(db_file, seed_cfg, created["id"], False)
 check("toggle disables a device", registry.get_device(db_file, created["id"])["enabled"] is False)
 
+# deleting a device must not leave its history/MAC cache behind for a future
+# device that reuses the same name
+_db_execute(
+    db_file,
+    "REPLACE INTO olt_mac_cache (olt_name, payload, updated_at) VALUES (?, ?, ?)",
+    [created["name"], "{}", "2026-11-07T10:00:00+00:00"],
+)
+_db_execute(
+    db_file,
+    "INSERT INTO olt_onu_history (ts, olt_name, ifindex, if_name) VALUES (?, ?, ?, ?)",
+    ["2026-11-07T10:00:00+00:00", created["name"], 1, "EPON01ONU1"],
+)
+
 # --- the poller picks changes up without a restart --------------------------
 monitor = Monitor(seed_cfg)
 monitor.init()
@@ -532,6 +546,9 @@ check("a disabled device is not polled (no worker thread)",
       monitor.olts[1].enabled is False and monitor.olts[0].enabled is True)
 
 registry.delete_device(db_file, seed_cfg, created["id"])
+check("deleting an OLT also removes its history and MAC cache",
+      not _db_query(db_file, "SELECT 1 FROM olt_onu_history WHERE olt_name = ?", [created["name"]])
+      and not _db_query(db_file, "SELECT 1 FROM olt_mac_cache WHERE olt_name = ?", [created["name"]]))
 monitor.reload()
 check("reload() drops a deleted device without a restart",
       [c.name for c in monitor.olts] == ["OLT-A"] and not monitor._threads)
@@ -625,6 +642,53 @@ monitor3.poll_olt(served, threading.Event())
 check("a poll for a registered device is stored",
       bool(db_query(db_file, "SELECT 1 FROM device_current WHERE `key`='olt:OLT-A'")))
 
+# a later poll fails (wrong community / device offline): the last good payload
+# must stay available and the UI must be told the data is stale
+db_execute(
+    db_file,
+    "UPDATE device_current SET ok=1, error=NULL, payload=?, updated_at=?"
+    " WHERE `key`='olt:OLT-A'",
+    [
+        json.dumps({
+            "brand": "vsol",
+            "brand_label": "VSOL",
+            "last_good_at": "2026-11-07T10:00:00+00:00",
+        }),
+        "2026-11-07T10:00:00+00:00",
+    ],
+)
+monitor3.status["olts"]["OLT-A"] = {
+    "ports": 5, "onus": 25, "mac_entries": 12,
+    "last_good": "2026-11-07T10:00:00+00:00",
+}
+
+
+class FailingOlt(FakeOlt):
+    def collect(self):
+        return SimpleNamespace(
+            name="OLT-A", ok=False, error="no interface table returned",
+            info={}, ports=[], onus=[], mac_map={}, health={},
+        )
+
+
+monitor3.store_olt(FailingOlt(), FailingOlt().collect())
+failed_row = db_query(
+    db_file,
+    "SELECT payload, ok, error FROM device_current WHERE `key`='olt:OLT-A'",
+)[0]
+failed_payload = json.loads(failed_row["payload"])
+failed_status = monitor3.status["olts"]["OLT-A"]
+check("a failed poll keeps the last good payload instead of blanking it",
+      failed_row["ok"] == 0
+      and failed_row["error"] == "no interface table returned"
+      and failed_payload.get("brand") == "vsol"
+      and failed_payload.get("stale") is True
+      and failed_payload.get("poll_error") == "no interface table returned")
+check("a failed poll keeps the last known counts and last-good time",
+      failed_status["onus"] == 25 and failed_status["ports"] == 5
+      and failed_status["stale"] is True
+      and failed_status["last_good"] == "2026-11-07T10:00:00+00:00")
+
 monitor3.stop()
 
 print()
@@ -670,6 +734,20 @@ check("the BDPON/BTPON/PHOTON Telnet profile reads CPU, RAM and per-PON DDM",
       and vendors_mod.telnet_profile("epon_ponport")["commands"]["ports"]["cmd"]
       == "show pon-port ddm-info pon{pon}")
 check("the VSOL profile is flagged as verified", vendors_mod.profile("vsol")["verified"] is True)
+check("HUAWEI is recognised from sysDescr",
+      vendors_mod.detect("Huawei Technologies MA5800 GPON", [])["brand"] == "huawei")
+check("TBS and HSGQ are first-class brands",
+      vendors_mod.detect("TBS EPON OLT", [])["brand"] == "tbs"
+      and vendors_mod.detect("HSGQ OLT", [])["brand"] == "hsgq")
+check("the generic GPON profile has no SOHO label",
+      vendors_mod.detect("unknown GPON OLT", [])["brand"] == "gpon"
+      and "SOHO" not in vendors_mod.brand_label("gpon"))
+check("the legacy gpon_soho key resolves to generic GPON",
+      vendors_mod.profile("gpon_soho")["pon_type"] == "gpon"
+      and vendors_mod.brand_label("gpon_soho") == "Generic GPON")
+_huawei = OltCollector({}, {"name": "HW", "host": "0.0.0.0", "brand": "huawei", "pon_type": "gpon"})
+check("Huawei gpon-onu_1/2/3:4 is classified as an ONU",
+      _huawei.classify("gpon-onu_1/2/3:4")[0] == "onu")
 check("an unknown brand falls back to generic", vendors_mod.profile("nope")["pon_type"] == "epon")
 check("the collector classifies GPON names too",
       OltCollector({}, {"name": "G", "host": "0.0.0.0", "brand": "cdata"}).classify("GPON0/1:5") == ("onu", 1, 5))
@@ -830,6 +908,27 @@ check("a CLI-only ONU gets a stable synthetic ifindex and a full row",
       and photon_rows[0]["onu_type"] == "SFU"
       and photon_rows[0]["vendor"] == "CDT"
       and photon_rows[0]["distance_m"] == 2631.0)
+
+# BDCOM / VSOL EPON report a registered ONU as "auto-configured"; it must be
+# counted as online (a Telnet-only OLT otherwise shows 0/N up).
+bdcom_merge = OltCollector({}, {
+    "name": "B", "host": "0.0.0.0", "brand": "bdcom", "pon_type": "epon",
+    "telnet_profile": "epon_vsol",
+})
+bdcom_rows: list[dict] = []
+bdcom_merge._merge_telnet(
+    bdcom_rows,
+    [],
+    {"onus": [
+        {"pon": 1, "onu_id": 1, "mac": "80:76:30:61:AE:C0",
+         "state": "auto-configured"},
+        {"pon": 1, "onu_id": 2, "mac": "F4:B8:C1:3A:B6:1F",
+         "state": "deregistered"},
+    ]},
+)
+check("BDCOM 'auto-configured' is an online ONU",
+      bdcom_rows[0]["oper_status"] == 1
+      and bdcom_rows[1]["oper_status"] == 2)
 
 # ---- C-Data FD13xx (EPON) ------------------------------------------------
 cdata_rows = tp.parse_cdata_inventory(

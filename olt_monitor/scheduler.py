@@ -417,13 +417,20 @@ class Monitor:
             elapsed = time.monotonic() - started
             if elapsed > interval:
                 log.warning(
-                    "%s poll took %.0fs, longer than its %ds interval - raise "
-                    "interval_seconds on the Devices page to stop continuous polling",
+                    "%s poll took %.0fs, longer than its %ds interval - raising "
+                    "interval_seconds on the Devices page (or the per-vendor "
+                    "stagger) would stop continuous polling",
                     label, elapsed, interval,
                 )
-            # never busy-loop a device: keep a small idle gap even when a poll
-            # overruns its interval
-            stop.wait(max(5.0, interval - elapsed))
+            # Never busy-loop a device: keep a small idle gap even when a poll
+            # overruns its interval.  If a poll is slower than the interval
+            # (a VSOL GPON with hundreds of ONUs), give the agent at least half
+            # the poll duration to recover instead of starting the next walk
+            # five seconds later.
+            wait = interval - elapsed
+            if wait < 5.0:
+                wait = max(5.0, min(float(interval), elapsed * 0.5))
+            stop.wait(wait)
 
     # -- retention / maintenance ----------------------------------------
     def _start_maintenance(self) -> None:
@@ -606,6 +613,55 @@ class Monitor:
     def store_olt(self, collector: OltCollector, snapshot: Any) -> None:
         stamp = utcnow_iso()
         with self._lock:
+            # A failed poll must not wipe the last good snapshot: an OLT whose
+            # SNMP community is wrong would otherwise lose its brand, ONU
+            # count and every other detail the UI reads from this payload, and
+            # look like a brand-new device with no data at all.
+            previous = query(
+                self.db_path,
+                "SELECT payload, updated_at, ok FROM device_current WHERE `key` = ?",
+                [f"olt:{snapshot.name}"],
+            )
+            previous = previous[0] if previous else None
+            info = dict(snapshot.info or {})
+            if not snapshot.ok:
+                previous_info: dict[str, Any] = {}
+                if previous and previous.get("payload"):
+                    try:
+                        loaded = json.loads(previous["payload"])
+                        if isinstance(loaded, dict):
+                            previous_info = loaded
+                    except (ValueError, TypeError):
+                        previous_info = {}
+                merged = dict(previous_info)
+                merged.update(info)
+                info = merged
+                last_good = previous_info.get("last_good_at")
+                if not last_good and previous and previous.get("ok"):
+                    last_good = previous.get("updated_at")
+                if not last_good:
+                    # The payload may predate last_good_at (or be empty after a
+                    # very first failed poll).  The collected ONU/port rows still
+                    # record when this OLT last returned data.
+                    stamps = [
+                        row.get("m")
+                        for row in query(
+                            self.db_path,
+                            "SELECT MAX(updated_at) AS m FROM olt_onu_current WHERE olt_name = ?"
+                            " UNION ALL"
+                            " SELECT MAX(updated_at) AS m FROM olt_port_current WHERE olt_name = ?",
+                            [snapshot.name, snapshot.name],
+                        )
+                        if row.get("m")
+                    ]
+                    if stamps:
+                        last_good = max(stamps)
+                if last_good:
+                    info["last_good_at"] = last_good
+                if snapshot.error:
+                    info["poll_error"] = snapshot.error
+                info["stale"] = True
+
             upsert(
                 self.db_path,
                 "device_current",
@@ -615,12 +671,12 @@ class Monitor:
                     "kind": "olt",
                     "name": snapshot.name,
                     "ok": 1 if snapshot.ok else 0,
-                    "payload": json.dumps(snapshot.info),
+                    "payload": json.dumps(info),
                     "error": snapshot.error,
                     "updated_at": stamp,
                 },
             )
-            self.status["olts"][snapshot.name] = {
+            entry = {
                 "name": snapshot.name,
                 "host": collector.host,
                 "enabled": collector.enabled,
@@ -632,8 +688,24 @@ class Monitor:
                 "onus": len(snapshot.onus),
                 "mac_entries": len(snapshot.mac_map or {}),
                 "health": getattr(snapshot, "health", {}) or {},
-                "info": snapshot.info or {},
+                "info": info,
             }
+            if not snapshot.ok:
+                # Keep showing how many ports/ONUs were last known instead of
+                # reporting "fail - 0 ONUs" for a device that merely went
+                # unreachable.  last_good stays pinned to the last good poll.
+                previous_status = self.status["olts"].get(snapshot.name) or {}
+                for key in ("ports", "onus", "mac_entries"):
+                    if not entry[key] and previous_status.get(key):
+                        entry[key] = previous_status[key]
+                entry["stale"] = True
+                entry["last_good"] = (
+                    info.get("last_good_at") or previous_status.get("last_good")
+                )
+            else:
+                entry["stale"] = False
+                entry["last_good"] = stamp
+            self.status["olts"][snapshot.name] = entry
             self._store_health(snapshot, stamp)
             if not snapshot.ok:
                 return

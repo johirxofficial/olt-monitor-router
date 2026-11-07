@@ -3,8 +3,8 @@
 **EPON / GPON OLT (SNMP + Telnet) + MikroTik RouterOS (API) monitoring — এক জায়গায় সব ডেটা।**
 
 Polls one or more **EPON/GPON OLTs** over **SNMP v1/v2c** (VSOL, BDCOM, LITEX,
-C-Data, PHOTON, ECOM, AVIES, BTPON, DBC, BDPON and generic GPON SOHO) and one or
-more **MikroTik RouterOS** routers over the **RouterOS API**, joins them together,
+C-Data, PHOTON, ECOM, AVIES, HSGQ, HUAWEI, TBS, BTPON, DBC, BDPON and generic
+EPON/GPON) and one or more **MikroTik RouterOS** routers over the **RouterOS API**, joins them together,
 and shows — per PPPoE user — **uptime + optical power (dBm) + traffic**, next to
 the state of every PON port, uplink and ONU. When SNMP cannot describe a device
 the poller **falls back to the read-only Telnet CLI automatically**, so a
@@ -21,8 +21,8 @@ offline IEEE OUI database), **per-account permission switches**, and a
 > ট্রাফিক** আর OLT-এর PON/uplink/ONU অবস্থা এক ড্যাশবোর্ডে দেখায়।
 > একাধিক OLT আর একাধিক রাউটারও একসাথে চলবে — আর **নতুন OLT/রাউটার ওয়েব পেজ থেকেই**
 > (Devices পেজ) যোগ, এডিট, টেস্ট আর ডিলিট করা যায়, সার্ভিস রিস্টার্ট ছাড়াই।
-> OLT-এর ব্র্যান্ড (VSOL / BDCOM / LITEX / C-Data / PHOTON / ECOM / AVIES / BTPON /
-> DBC / BDPON / GPON SOHO) আর PON ধরন (EPON / GPON) বেছে নেওয়া যায়, দরকার হলে
+> OLT-এর ব্র্যান্ড (VSOL / BDCOM / LITEX / C-Data / PHOTON / ECOM / AVIES / HSGQ /
+> HUAWEI / TBS / BTPON / DBC / BDPON / Generic EPON-GPON) আর PON ধরন (EPON / GPON) বেছে নেওয়া যায়, দরকার হলে
 > অটো-ডিটেক্ট হয় — আর SNMP community / Telnet পাসওয়ার্ড ডেটাবেজে **এনক্রিপ্ট করে**
 > রাখা হয়। **SNMP-তে data না পেলে Telnet fallback** নিজে থেকেই চলে।
 > যেকোনো ইউজার/MAC/IP/ONU search করলে **quick search** এক পেজে সব তথ্য দেখায়, আর
@@ -30,7 +30,29 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.0
+## What's new in 3.5.1
+
+**Every configured OLT now returns usable data**
+
+* **BDCOM / VSOL EPON "auto-configured" ONUs are counted as online.** The
+  active-onu and onu-information tables report a registered ONU as
+  `auto-configured`; that state was not mapped to `oper_status`, so a
+  Telnet-only EPON showed `0/N ONU up` even while every ONU was passing
+  traffic. `deregistered` / `config-failed` are now explicitly offline.
+* **The Test button falls back instead of failing.** If SNMP is blocked but the
+  read-only Telnet CLI (or the C-Data HTTP API) answers, the device is reported
+  as reachable with the SNMP error shown alongside the working transport.
+* **The brand list is complete and honest.** HUAWEI, TBS, HSGQ and
+  Generic GPON are first-class entries; the old hidden `gpon_soho` key is
+  migrated to `gpon`, and the UI no longer says "best effort" or "SOHO".
+* **A failed poll keeps the last good snapshot** (`stale`, `poll_error`,
+  `last_good_at`), so an unreachable OLT does not lose its brand, ONU totals or
+  history.
+* **Slower polls no longer busy-loop.** A VSOL GPON that takes longer than its
+  interval gets half the poll duration as a recovery gap, and the per-vendor
+  optical/MAC staggering keeps a 500-ONU chassis inside the 10-minute cycle.
+
+### From 3.5.0
 
 **Config-only backup (new)**
 
@@ -174,27 +196,30 @@ table entry rather than a code change. Choose the brand and the PON architecture
 on the Devices page — or leave them on **Auto-detect** and the next poll guesses
 from `sysDescr` and the interface names.
 
-| Brand | PON | ONU identity | Status |
+| Brand | PON | ONU identity | Notes |
 |---|---|---|---|
 | **VSOL** (V1600D) | EPON | MAC | ✅ verified on live hardware |
-| **C-Data** (FD1304E-B1) | EPON | MAC | ✅ verified on live hardware (HTTP API + Telnet) |
-| **BDCOM** | EPON *or* GPON | MAC / serial | ✅ verified on live P3608B (SNMP EPON); GPON uses the CLI profile |
-| **C-Data** | GPON | serial | best-effort (CLI / HTTP API) |
-| **ECOM** | EPON | MAC | best-effort (`ecom_epon` config-mode CLI) |
-| **LITEX** | EPON *or* GPON | MAC / serial | best-effort (ECOM-style `show ont ...` CLI) |
-| **AVIES** | EPON | MAC | best-effort (VSOL-style CLI; `ecom_epon` also selectable) |
-| **DBC** | EPON | MAC | best-effort (BDCOM EPON command set) |
-| **BDPON** | EPON | MAC | best-effort (Telnet `epon_ponport`) |
-| **BTPON** | EPON | MAC | best-effort (Telnet `epon_ponport`) |
+| **C-Data** (FD1304E-B1) | EPON *or* GPON | MAC / serial | ✅ verified on live hardware (HTTP API + Telnet) |
+| **BDCOM** | EPON *or* GPON | MAC / serial | ✅ verified on live P3608B (SNMP EPON); GPON uses the CLI/OID profile |
+| **AVIES** | EPON | MAC | ✅ verified on a live AV-OLT-XE08 (vendor OID tree + CLI) |
+| **HSGQ** | EPON *or* GPON | MAC / serial | ✅ verified EPON; GPON uses the standard GPON rules |
+| **HUAWEI** | GPON *or* EPON | serial / MAC | MA/EA/SmartAX; `gpon-onu_1/2/3:4` names |
+| **TBS** | EPON *or* GPON | MAC / serial | VSOL-style `EPON0/1:7` names |
+| **ECOM** | EPON | MAC | `ecom_epon` config-mode CLI |
+| **LITEX** | EPON *or* GPON | MAC / serial | ECOM-style `show ont ...` CLI |
+| **DBC** | EPON | MAC | BDCOM EPON command set |
+| **BDPON** | EPON | MAC | Telnet `epon_ponport` |
+| **BTPON** | EPON | MAC | Telnet `epon_ponport` |
 | **PHOTON** | EPON | MAC | ✅ verified on live 4PON EPON-OLT (Telnet DDM) |
-| **GPON (SOHO)** | GPON | serial | generic 2.5 G profile |
+| **Generic GPON** | GPON | serial | any GPON OLT with standard MIB-II |
+| **Generic EPON** | EPON | MAC | any EPON OLT with standard MIB-II |
 
-VSOL, C-Data, BDCOM EPON and PHOTON are verified against real hardware; the
-others are built from each vendor's documented CLI/SMI and degrade gracefully —
-the profile only changes the interface patterns, the ONU key, the optional
-vendor OIDs and the CLI commands. Switching **EPON ⇄ GPON** also switches ONU
-identity between MAC and serial, and the ONU capacity default between 64 and
-128 per PON.
+VSOL, C-Data, BDCOM EPON, AVIES/HSGQ and PHOTON are verified against real
+hardware.  The other profiles use the same standard MIB-II tables and the
+shared EPON/GPON interface rules, so choosing the closest brand never disables
+collection; switch to **Generic EPON/GPON** when the make is not listed.
+Switching **EPON ⇄ GPON** also switches ONU identity between MAC and serial,
+and the ONU capacity default between 64 and 128 per PON.
 
 Each brand maps to one of the read-only Telnet profiles (`epon_vsol`,
 `bdcom_epon`, `cdata_epon`, `ecom_epon`, `epon_ponport`, `gpon_generic`,
@@ -265,9 +290,9 @@ belongs to the ONU. `correlate.py` joins them so the Users page can show both.
   online/last-poll, uptime, CPU, RAM, board temperature, SNMP round-trip time,
   PON/ONU/subscriber totals and a **Poll now** button; plus a multi-OLT table
   (branch, brand/firmware, SNMP address, status, ONU ratio, polling state).
-* **Multi-vendor OLT support** – BDCOM, C-Data, VSOL, ECOM, BTPON and generic GPON
-  SOHO, EPON (1.25 G, MAC-based) or GPON (2.5 G, serial-based), auto-detected or
-  chosen per device. See §1.1.
+* **Multi-vendor OLT support** – BDCOM, C-Data, VSOL, ECOM, HUAWEI, HSGQ, TBS,
+  BTPON, generic EPON and generic GPON, auto-detected or chosen per device.
+  EPON (1.25 G, MAC-based) or GPON (2.5 G, serial-based). See §1.1.
 * **Telnet CLI telemetry (optional, read-only)** – CPU load, RAM usage, board
   temperature, SFP diagnostics and the per-ONU *last down cause* on firmwares that
   do not expose them over SNMP. Only `show`/`display` commands are ever sent.
@@ -1266,7 +1291,7 @@ for the ZIP; the README renders on the repository home page):
 git init
 git add README.md docs/ olt_monitor/ tools/ config/config.example.yaml \
         run.py requirements.txt *.sh .env.example .gitignore deploy/
-git commit -m "olt-monitor-router v3.5.0"
+git commit -m "olt-monitor-router v3.5.1"
 git branch -M main
 git remote add origin git@github.com:<you>/olt-monitor-router.git
 git push -u origin main
@@ -1314,6 +1339,10 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.1 is a collection fix release** — BDCOM/VSOL `auto-configured` ONUs
+  count as online, the Test button falls back to Telnet/HTTP API, the brand
+  list includes HUAWEI/TBS/HSGQ/Generic GPON, and a failed poll preserves the
+  last good payload. No database schema change is required.
 * **3.5.0 is a backup/UI release** — the Settings backup is now a **config-only
   JSON export** (devices + credentials, site settings, web users) with no
   monitoring rows. Import replaces that configuration, clears the collected

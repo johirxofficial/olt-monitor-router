@@ -677,6 +677,23 @@ def init_db(path: str | Path | None = None) -> None:
                     cur.execute(
                         "INSERT INTO meta (`key`, `value`) VALUES ('permissions_v1', '1')"
                     )
+                # Rename the legacy "GPON (SOHO)" brand key.  The profile is
+                # still accepted as an alias, but the device dropdown and the
+                # stored value should use the visible "Generic GPON" key.
+                cur.execute(
+                    "SELECT `value` FROM meta WHERE `key` = 'gpon_soho_v1'"
+                )
+                if cur.fetchone() is None:
+                    cur.execute(
+                        "UPDATE `devices`"
+                        " SET config = JSON_SET(config, '$.brand', 'gpon')"
+                        " WHERE kind = 'olt'"
+                        "   AND JSON_VALID(config)"
+                        "   AND JSON_UNQUOTE(JSON_EXTRACT(config, '$.brand')) = 'gpon_soho'"
+                    )
+                    cur.execute(
+                        "INSERT INTO meta (`key`, `value`) VALUES ('gpon_soho_v1', '1')"
+                    )
             conn.commit()
         except Exception:
             conn.rollback()

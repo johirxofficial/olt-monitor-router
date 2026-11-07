@@ -2786,6 +2786,30 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
                 ok, message, details = collector.probe()
             finally:
                 collector.close()
+
+            # A working OLT whose SNMP is blocked (or simply disabled) still
+            # returns its data through the CLI / HTTP API.  Do not report the
+            # device as broken when one of those transports answers.
+            if not ok and device.get("telnet_enabled"):
+                from .. import telnet as telnet_mod
+
+                telnet_ok, telnet_message, telnet_details = telnet_mod.probe(device)
+                if telnet_ok:
+                    merged = dict(telnet_details or {})
+                    merged["snmp_error"] = message
+                    details = merged
+                    ok = True
+                    message = f"SNMP failed ({message}); Telnet OK: {telnet_message}"
+            if not ok and device.get("cdata_api_enabled"):
+                from .. import cdata as cdata_mod
+
+                api_ok, api_message, api_details = cdata_mod.probe(device)
+                if api_ok:
+                    merged = dict(api_details or {})
+                    merged["snmp_error"] = message
+                    details = merged
+                    ok = True
+                    message = f"SNMP failed ({message}); OLT API OK: {api_message}"
         else:
             from ..collectors import RouterCollector
 

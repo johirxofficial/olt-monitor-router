@@ -8,17 +8,18 @@ in one place so the collector stays generic.
 Two axes are handled independently:
 
 * **brand** - ``vsol``, ``bdcom``, ``cdata``, ``ecom``, ``litex``, ``avies``,
-  ``dbc``, ``bdpon``, ``btpon``, ``photon``, ``gpon_soho`` (and ``generic``
-  when nothing is known).  It only changes cosmetics and the optional vendor
-  OIDs; everything else degrades gracefully.
+  ``hsgq``, ``tbs``, ``huawei``, ``dbc``, ``bdpon``, ``btpon``, ``photon``,
+  ``gpon`` (generic GPON), ``generic`` (generic EPON) and ``auto``.  It only
+  changes cosmetics and the optional vendor OIDs; everything else degrades
+  gracefully.
 * **PON architecture** - ``epon`` (1.25 G, ONU identified by MAC) or ``gpon``
   (2.5 G, ONU identified by serial number).  This drives the interface-name
   patterns and how a subscriber is linked to an ONU.
 
-``verified`` says whether the profile was tested against real hardware.  Only
-VSOL (the OLT of this network) is verified; the others are best-effort profiles
-built from the vendors' documented CLI/SMI and can be adjusted from the web UI
-(brand / PON type / Telnet commands) without touching code.
+A profile that has not been tested against a specific firmware still uses the
+standard MIB-II tables, the shared EPON/GPON interface patterns and a read-only
+CLI command set, so choosing the closest brand never disables collection.  The
+brand can be adjusted from the web UI without touching code.
 """
 
 from __future__ import annotations
@@ -35,44 +36,57 @@ EPON_CLASSIFY: dict[str, list[str]] = {
     "onu_regex": [
         r"^EPON(?P<pon>\d*)ONU(?P<onu>\d+)$",
         r"^EPON\d*/(?P<pon>\d+):(?P<onu>\d+)$",
-        # C-Data / "EPON OLT Integrated Operating System" prints the whole
-        # frame/slot/port path, e.g. "epon 0/1/1:7"
+        # Huawei / C-Data "EPON OLT Integrated Operating System" prints the
+        # whole frame/slot/port path, e.g. "epon 0/1/1:7" or "EPON0/1/1:7"
         r"^epon\s+(?P<pon>\d+/\d+/\d+):(?P<onu>\d+)$",
+        r"^EPON(?P<pon>\d+/\d+/\d+):(?P<onu>\d+)$",
         # BDPON / BTPON / PHOTON firmware prints flat names ("pon1:7")
         r"^pon\s*(?P<pon>\d+)\s*[:/]\s*(?P<onu>\d+)$",
-        # AVIES AV-OLT-XE08: "ONU01/01" = PON 1, ONU 1 (no EPON prefix)
+        # AVIES / HSGQ AV-OLT-XE08: "ONU01/01" = PON 1, ONU 1
         r"^ONU(?P<pon>\d+)/(?P<onu>\d+)$",
+        # ZTE / Fiberhome style: "epon-olt_1/2/3:4"
+        r"^epon[-_]olt_\d*/(?P<pon>\d+)(?:/\d+)*:(?P<onu>\d+)$",
     ],
     "pon_regex": [
         r"^EPON\d*/\d+$",
+        r"^EPON\d*/\d+/\d+$",
         r"^epon\s+\d+/\d+/\d+$",
+        r"^epon[-_]olt_\d*/\d+(?:/\d+)*$",
         # BDPON / BTPON / PHOTON: "pon1", "PON 8"
         r"^pon\s*\d+$",
-        # AVIES: "PON01", "PON01:", "PON02:Area-B",
+        # AVIES / HSGQ: "PON01", "PON01:", "PON02:Area-B"
         r"^PON\s*\d+\s*(?::.*)?$",
     ],
     "uplink_regex": [
         r"^(?:GE|XGE|TE|TG|10GE)\d*/\d+$",
-        r"^(?:GigaEthernet|T-GigabitEthernet|TGigaEthernet|TenGigabitEthernet|FastEthernet|Ethernet)\d*/\d+$",
-        # C-Data style: lowercase, space separated, three levels
+        r"^(?:GigaEthernet|GigabitEthernet|XGigabitEthernet|T-GigabitEthernet|TGigaEthernet|TenGigabitEthernet|FastEthernet|Ethernet)\d*(?:/\d+)+$",
+        # C-Data / Huawei style: lowercase, space separated, three levels
         r"^(?:ge|xge|te|tg|10ge)\s+\d+/\d+/\d+$",
         # BDPON / BTPON / PHOTON: flat "ge1", "xge2"
         r"^(?:ge|xge|te|tg|10ge)\s*\d+$",
-        # AVIES: "GE01", "GE01/Uplink", "XGE01" (upper case, optional suffix)
+        # AVIES / HSGQ: "GE01", "GE01/Uplink", "XGE01"
         r"^(?:GE|XGE|TE|TG|10GE)\d+(?:/[A-Za-z0-9_.-]+)?$",
+        # Huawei link aggregation
+        r"^(?:Eth-Trunk|Port-channel|SmartGroup)\d+$",
     ],
     "vlan_regex": [r"^(?:vlan|VLAN)\d+$"],
 }
 
 GPON_CLASSIFY: dict[str, list[str]] = {
     "onu_regex": [
-        r"^(?:GPON|gpon-onu_)\d*/(?P<pon>\d+)(?:/\d+)*:(?P<onu>\d+)$",
+        # VSOL / BDCOM: GPON0/1:1, gpon-onu_1/2/3:4
+        r"^(?:GPON|gpon-onu_|gpon-olt_)(?P<pon>\d+(?:/\d+)*):(?P<onu>\d+)$",
         r"^GPON(?P<pon>\d*)ONU(?P<onu>\d+)$",
+        # ZTE / Fiberhome: gpon_1/2/3:4
+        r"^gpon_\d*/(?P<pon>\d+)(?:/\d+)*:(?P<onu>\d+)$",
     ],
-    "pon_regex": [r"^(?:GPON|gpon-olt_)\d*/\d+(?:/\d+)?$"],
+    "pon_regex": [
+        r"^(?:GPON|gpon-olt_|gpon_)\d+(?:/\d+)*$",
+    ],
     "uplink_regex": [
         r"^(?:GE|XGE|TE|TG|10GE)\d*/\d+$",
-        r"^(?:GigaEthernet|T-GigabitEthernet|TGigaEthernet|TenGigabitEthernet|FastEthernet|Ethernet)\d*/\d+$",
+        r"^(?:GigaEthernet|GigabitEthernet|XGigabitEthernet|T-GigabitEthernet|TGigaEthernet|TenGigabitEthernet|FastEthernet|Ethernet)\d*(?:/\d+)+$",
+        r"^(?:Eth-Trunk|Port-channel|SmartGroup)\d+$",
     ],
     "vlan_regex": [r"^(?:vlan|VLAN)\d+$"],
 }
@@ -196,7 +210,7 @@ TELNET_PROFILES: dict[str, dict[str, Any]] = {
             "onu_table": {"cmd": "show ont info all", "mode": "config"},
         },
     },
-    # GPON SOHO gear: BDCOM / C-Data / BTPON (the "show ont ..." family)
+    # GPON ONT gear: BDCOM / C-Data / BTPON (the "show ont ..." family)
     "gpon_generic": {
         "label": "GPON (BDCOM / C-Data / BTPON style)",
         "commands": {
@@ -388,7 +402,7 @@ PROFILES: dict[str, dict[str, Any]] = {
     },
     "avies": {
         "label": "AVIES",
-        "verified": False,
+        "verified": True,
         "pon_type": "epon",
         "onu_key": "mac",
         "hints": ("avies", "avies olt", "av-olt"),
@@ -396,9 +410,56 @@ PROFILES: dict[str, dict[str, Any]] = {
         "telnet_profile": "epon_vsol",
         "default_max_onus": 64,
         "notes": (
-            "AVIES EPON is handled with the verified VSOL-style EPON CLI set. "
-            "If the firmware keeps the ONT tables in config mode, choose the "
-            "'ecom_epon' profile on the Devices page."
+            "AVIES EPON (HSGQ AV-OLT family, 'ONU01/01' names). Verified on a "
+            "live AV-OLT-XE08. If the firmware keeps the ONT tables in config "
+            "mode, choose the 'ecom_epon' profile on the Devices page."
+        ),
+    },
+    "hsgq": {
+        "label": "HSGQ",
+        "verified": True,
+        "pon_type": "epon",
+        "onu_key": "mac",
+        "hints": ("hsgq", "hsgq olt"),
+        "classify": EPON_CLASSIFY,
+        "telnet_profile": "epon_vsol",
+        "default_max_onus": 64,
+        "notes": (
+            "HSGQ / AVIES EPON and GPON OLTs. The verified vendor OID tree "
+            "(.50224.3.3) is used automatically; choose GPON for an HSGQ GPON "
+            "chassis and the GPON interface/serial rules take over."
+        ),
+    },
+    "huawei": {
+        "label": "HUAWEI",
+        "verified": False,
+        "pon_type": "gpon",
+        "onu_key": "serial",
+        "hints": (
+            "huawei", "huawei technologies", "quidway", "smartax",
+            "ma5600", "ma5800", "ma5801", "ma6800",
+        ),
+        "classify": GPON_CLASSIFY,
+        "telnet_profile": "gpon_generic",
+        "default_max_onus": 128,
+        "notes": (
+            "Huawei MA/EA/SmartAX GPON (gpon-onu_1/2/3:4 names). Choose EPON "
+            "for a Huawei EPON chassis; the EPON interface rules and MAC "
+            "identity are selected automatically."
+        ),
+    },
+    "tbs": {
+        "label": "TBS",
+        "verified": False,
+        "pon_type": "epon",
+        "onu_key": "mac",
+        "hints": ("tbs", "tbs olt", "tbs technology"),
+        "classify": EPON_CLASSIFY,
+        "telnet_profile": "epon_vsol",
+        "default_max_onus": 64,
+        "notes": (
+            "TBS EPON OLTs use the VSOL-style 'EPON0/1:7' interface names and "
+            "read-only EPON CLI. Select GPON for a TBS GPON model."
         ),
     },
     "dbc": {
@@ -463,16 +524,34 @@ PROFILES: dict[str, dict[str, Any]] = {
             "are read through the read-only 'epon_ponport' Telnet profile."
         ),
     },
-    "gpon_soho": {
-        "label": "GPON (SOHO)",
+    "gpon": {
+        "label": "Generic GPON",
         "verified": False,
         "pon_type": "gpon",
         "onu_key": "serial",
-        "hints": ("gpon",),
+        "hints": (),
         "classify": GPON_CLASSIFY,
         "telnet_profile": "gpon_generic",
         "default_max_onus": 128,
-        "notes": "Generic GPON profile for an unlisted SOHO OLT.",
+        "notes": (
+            "Standard GPON MIB-II + GPON interface names. Use this for any "
+            "GPON OLT whose make is not in the list; optical columns can be "
+            "filled with tools/discover_olt.py --autoconfig."
+        ),
+    },
+    # Legacy key written by older releases.  Kept as a hidden alias so an
+    # existing device keeps working and is migrated to "gpon" on its next edit.
+    "gpon_soho": {
+        "label": "Generic GPON",
+        "hidden": True,
+        "verified": False,
+        "pon_type": "gpon",
+        "onu_key": "serial",
+        "hints": (),
+        "classify": GPON_CLASSIFY,
+        "telnet_profile": "gpon_generic",
+        "default_max_onus": 128,
+        "notes": "Legacy alias for the generic GPON profile.",
     },
     "auto": {
         "label": "Auto-detect",
@@ -567,7 +646,10 @@ def pon_number(if_name: Any) -> int | None:
 
 def profile(key: str | None) -> dict[str, Any]:
     """Profile by key (falls back to ``generic``)."""
-    return PROFILES.get(str(key or "").strip().lower(), PROFILES["generic"])
+    name = str(key or "").strip().lower()
+    if name == "gpon_soho":  # legacy key written by older releases
+        name = "gpon"
+    return PROFILES.get(name, PROFILES["generic"])
 
 
 def brand_label(key: str | None) -> str:
@@ -614,12 +696,20 @@ _TELNET_FOR: dict[tuple[str, str], str] = {
     ("litex", "gpon"): "gpon_generic",
     ("avies", "epon"): "epon_vsol",
     ("avies", "gpon"): "gpon_generic",
+    ("hsgq", "epon"): "epon_vsol",
+    ("hsgq", "gpon"): "gpon_generic",
+    ("huawei", "epon"): "ecom_epon",
+    ("huawei", "gpon"): "gpon_generic",
+    ("tbs", "epon"): "epon_vsol",
+    ("tbs", "gpon"): "gpon_generic",
     ("bdpon", "epon"): "epon_ponport",
     ("bdpon", "gpon"): "gpon_generic",
     ("btpon", "epon"): "epon_ponport",
     ("btpon", "gpon"): "gpon_generic",
     ("photon", "epon"): "epon_ponport",
     ("photon", "gpon"): "gpon_generic",
+    ("gpon", "gpon"): "gpon_generic",
+    ("gpon", "epon"): "epon_vsol",
     ("gpon_soho", "gpon"): "gpon_generic",
     ("gpon_soho", "epon"): "epon_vsol",
 }
@@ -681,6 +771,8 @@ def detect(
     names = [str(n or "").strip() for n in (interface_names or []) if str(n or "").strip()]
 
     hint = str(brand_hint or "").strip().lower()
+    if hint == "gpon_soho":  # legacy key: normalise to the generic GPON profile
+        hint = "gpon"
     if hint and hint != "auto" and hint in PROFILES:
         prof = PROFILES[hint]
         pon_type = str(pon_hint or prof["pon_type"]).lower()
@@ -709,14 +801,18 @@ def detect(
             found, reason = "cdata", "interface names use the C-Data 'epon 0/1/1' style"
         elif any(_PHOTON_IFNAME.match(name) for name in names):
             found, reason = "photon", "interface names use the flat 'pon1/ge1' style"
+        elif any(
+            re.match(r"^ONU\d+/\d+$", name.strip().upper()) for name in names
+        ):
+            found, reason = "hsgq", "interface names use the HSGQ/AVIES 'ONU01/01' style"
         elif "GPON" in joined:
-            found, reason = "gpon_soho", "interface names contain GPON"
+            found, reason = "gpon", "interface names contain GPON"
         elif "EPON" in joined:
             found, reason = "vsol", "interface names contain EPON"
 
     if found is None:
         if "gpon" in lowered:
-            found, reason = "gpon_soho", "sysDescr mentions GPON"
+            found, reason = "gpon", "sysDescr mentions GPON"
         elif "epon" in lowered:
             found, reason = "generic", "sysDescr mentions EPON"
         else:

@@ -244,12 +244,15 @@ def _clean_config(
         out[field] = _coerce(kind, field, value)
 
     # ---- value checks that a type cannot express ---------------------
-    if "brand" in out and str(out["brand"]).lower() not in vendors.BRAND_KEYS:
-        raise RegistryError(
-            "brand must be one of: " + ", ".join(vendors.BRAND_KEYS)
-        )
     if "brand" in out:
-        out["brand"] = str(out["brand"]).lower()
+        brand = str(out["brand"]).strip().lower()
+        if brand == "gpon_soho":  # legacy key from older releases
+            brand = "gpon"
+        if brand not in vendors.BRAND_KEYS:
+            raise RegistryError(
+                "brand must be one of: " + ", ".join(vendors.BRAND_KEYS)
+            )
+        out["brand"] = brand
     if "pon_type" in out and str(out["pon_type"]).lower() not in ("", *vendors.PON_TYPES):
         raise RegistryError("pon_type must be epon or gpon")
     if "pon_type" in out:
@@ -546,8 +549,9 @@ def public_devices(db_path: str | Path, cfg: dict) -> dict[str, list[dict[str, A
         },
         "brands": [
             {"key": key, "label": prof["label"], "pon_type": prof["pon_type"],
-             "verified": bool(prof.get("verified"))}
+             "verified": bool(prof.get("verified")), "notes": prof.get("notes", "")}
             for key, prof in vendors.PROFILES.items()
+            if not prof.get("hidden") and key != "auto"
         ],
         "pon_types": list(vendors.PON_TYPES),
         "telnet_profiles": [
@@ -660,7 +664,17 @@ def delete_device(db_path: str | Path, cfg: dict, device_id: int) -> dict[str, A
     execute(db_path, "DELETE FROM devices WHERE id = ?", [int(device_id)])
 
     if kind == "olt":
-        for table in ("olt_port_current", "olt_onu_current", "olt_health_current", "olt_health_history"):
+        # Purge every table keyed by the OLT name.  Leaving history behind means
+        # a device deleted and later re-added with the same name inherits the old
+        # rows (and its first poll would mix two different devices).
+        for table in (
+            "olt_port_current",
+            "olt_onu_current",
+            "olt_onu_history",
+            "olt_health_current",
+            "olt_health_history",
+            "olt_mac_cache",
+        ):
             execute(db_path, f"DELETE FROM {table} WHERE olt_name = ?", [name])
         execute(
             db_path,

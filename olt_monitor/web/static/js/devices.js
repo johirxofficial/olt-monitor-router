@@ -89,15 +89,14 @@
     if (includeAuto) {
       var auto = document.createElement("option");
       auto.value = "auto";
-      auto.textContent = "auto-detect";
+      auto.textContent = "Auto-detect (recommended)";
       select.appendChild(auto);
     }
     items.forEach(function (item) {
       var option = document.createElement("option");
       option.value = item.key;
-      option.textContent = item.label + (item.verified ? "" : " (best effort)");
+      option.textContent = item.label;
       if (item.pon_type) { option.dataset.pon = item.pon_type; }
-      if (item.pon_type && !item.verified) { option.dataset.pon = item.pon_type; }
       select.appendChild(option);
     });
   }
@@ -121,7 +120,7 @@
     }
   }
 
-  function brandHint() {
+  function brandHint(fillPon) {
     var box = $("brand-hint");
     if (!box) { return; }
     var key = $("f-brand").value;
@@ -131,10 +130,16 @@
       return;
     }
     var text = found.label + " - default PON: " + String(found.pon_type || "").toUpperCase();
-    if (!found.verified) {
-      text += ". Best-effort profile: set the Telnet command profile and check the first poll.";
+    if (found.notes) {
+      text += ". " + found.notes;
+    } else if (!found.verified) {
+      text += ". Standard MIB-II collection; check the first poll and adjust the Telnet profile if needed.";
     }
     box.textContent = text;
+    // Picking a brand fills in its default PON type, unless the user already
+    // chose one explicitly.
+    var pon = $("f-pon_type");
+    if (fillPon && pon && !pon.value && found.pon_type) { pon.value = found.pon_type; }
   }
 
   function clearForm() {
@@ -265,6 +270,17 @@
       return false;
     }
 
+    // An OLT added without its read-only community cannot return any data;
+    // require it on create (a blank field on edit keeps the stored secret).
+    if (!id && payload.kind === "olt" && !payload.community) {
+      errBox.textContent =
+        "The read-only SNMP community is required. Without it the OLT " +
+        "will fail every poll with \"no interface table returned\".";
+      errBox.classList.remove("d-none");
+      if (errBox.scrollIntoView) { errBox.scrollIntoView({ block: "nearest" }); }
+      return false;
+    }
+
     var url = id ? "/api/registry/" + id : "/api/registry/" + payload.kind;
     var method = id ? "PUT" : "POST";
 
@@ -318,9 +334,11 @@
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (res.ok) {
-          showAlert("success", "<strong>SNMP OK</strong> &mdash; " + res.message + describeTest(res));
+          var fallback = res.details && res.details.snmp_error;
+          showAlert("success", "<strong>" + (fallback ? "Reachable (fallback)" : "Reachable") +
+            "</strong> &mdash; " + res.message + describeTest(res));
         } else {
-          showAlert("danger", "<strong>SNMP failed</strong> &mdash; " + (res.message || "no reply"));
+          showAlert("danger", "<strong>Connection failed</strong> &mdash; " + (res.message || "no reply"));
         }
       })
       .catch(function (err) { showAlert("danger", String(err)); })
@@ -386,7 +404,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     ensureOptions();
-    if ($("f-brand")) { $("f-brand").addEventListener("change", brandHint); }
+    if ($("f-brand")) { $("f-brand").addEventListener("change", function () { brandHint(true); }); }
     var params = new URLSearchParams(window.location.search);
     var edit = params.get("edit");
     if (edit) {

@@ -94,8 +94,15 @@
           <td class="text-end small">{{ d.interval_seconds or cfg.polling.olt_interval_seconds }}s</td>
           <td class="small">
             {% if st and st.ok is not none %}
-              <span class="badge {{ 'bg-success' if st.ok else 'bg-danger' }}">{{ 'ok' if st.ok else 'fail' }}</span>
-              <span class="text-secondary">{{ st.onus }} ONUs</span>
+              {% if st.ok %}
+                <span class="badge bg-success">ok</span>
+                <span class="text-secondary">{{ st.onus }} ONUs</span>
+              {% else %}
+                <span class="badge bg-danger" title="{{ st.error or 'poll failed' }}">fail</span>
+                {% if st.onus %}<span class="text-secondary">{{ st.onus }} ONUs</span>{% endif %}
+                {% if st.stale %}<span class="badge bg-warning text-dark">stale</span>{% endif %}
+                {% if st.last_good %}<div class="text-secondary">last good {{ st.last_good[11:16] }}</div>{% endif %}
+              {% endif %}
             {% else %}<span class="text-secondary">no poll yet</span>{% endif %}
           </td>
           <td>
@@ -110,7 +117,7 @@
           </td>
           <td class="text-end text-nowrap">
             {% if can_manage %}
-            <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="DeviceUI.test({{ d.id }}, this)" title="Test SNMP">Test</button>
+            <button class="btn btn-sm btn-outline-primary py-0 px-2" onclick="DeviceUI.test({{ d.id }}, this)" title="Test SNMP (falls back to Telnet / API)">Test</button>
             {% if d.telnet_enabled %}
             <button class="btn btn-sm btn-outline-info py-0 px-2" onclick="DeviceUI.testTelnet({{ d.id }}, this)" title="Test Telnet">Telnet</button>
             {% endif %}
@@ -214,36 +221,40 @@
           <input type="hidden" id="f-id">
           <input type="hidden" id="f-kind">
 
-          <h6 class="text-secondary border-bottom pb-1">Identity</h6>
+          <h6 class="text-secondary border-bottom pb-1">Device</h6>
           <div class="row g-2 mb-3">
             <div class="col-md-6">
               <label class="form-label small mb-0">Name <span class="text-secondary">(unique)</span></label>
               <input class="form-control form-control-sm" id="f-name" required placeholder="OLT-Core">
             </div>
             <div class="col-md-6">
-              <label class="form-label small mb-0">Host / IP <span class="text-secondary">(IP or hostname)</span></label>
+              <label class="form-label small mb-0">Host / IP</label>
               <input class="form-control form-control-sm" id="f-host" required placeholder="192.0.2.10">
             </div>
             <div class="col-md-4 olt-only">
-              <label class="form-label small mb-0">Branch / region</label>
+              <label class="form-label small mb-0">Branch / region <span class="text-secondary">(optional)</span></label>
               <input class="form-control form-control-sm" id="f-branch" placeholder="Branch Office">
             </div>
-            <div class="col-md-3 olt-only">
-              <label class="form-label small mb-0">Site</label>
+            <div class="col-md-4 olt-only">
+              <label class="form-label small mb-0">Site <span class="text-secondary">(optional)</span></label>
               <input class="form-control form-control-sm" id="f-site" placeholder="POP-2">
             </div>
-            <div class="col-md-2 olt-only">
-              <label class="form-label small mb-0">Rack</label>
-              <input class="form-control form-control-sm" id="f-rack" placeholder="rack A">
+            <div class="col-6 col-md-3 router-only">
+              <label class="form-label small mb-0">API port</label>
+              <input type="number" class="form-control form-control-sm" id="f-api_port" placeholder="8728">
             </div>
-            <div class="col-md-3 olt-only">
-              <label class="form-label small mb-0">Display order</label>
-              <input type="number" class="form-control form-control-sm" id="f-display_order" placeholder="0">
+            <div class="col-6 col-md-3 router-only">
+              <label class="form-label small mb-0">Username</label>
+              <input class="form-control form-control-sm" id="f-username" placeholder="admin">
+            </div>
+            <div class="col-12 col-md-6 router-only">
+              <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
+              <input type="password" class="form-control form-control-sm" id="f-password" autocomplete="new-password">
             </div>
           </div>
 
           <div class="olt-only">
-            <h6 class="text-secondary border-bottom pb-1">Vendor &amp; PON architecture</h6>
+            <h6 class="text-secondary border-bottom pb-1">OLT access</h6>
             <div class="row g-2 mb-3">
               <div class="col-md-4">
                 <label class="form-label small mb-0">Brand</label>
@@ -257,199 +268,234 @@
                   <option value="gpon">GPON - 2.5 G, ONU by serial</option>
                 </select>
               </div>
-              <div class="col-md-4">
-                <label class="form-label small mb-0">Max ONUs per PON</label>
-                <input type="number" class="form-control form-control-sm" id="f-max_onus_per_pon" placeholder="64 / 128">
+              <div class="col-12">
+                <label class="form-label small mb-0">
+                  Read-only SNMP community
+                  <span class="text-secondary">(required; stored encrypted)</span>
+                </label>
+                <input type="password" class="form-control form-control-sm" id="f-community" autocomplete="new-password" placeholder="community string">
+                <div class="form-text" id="community-hint"></div>
               </div>
-              <div class="col-md-4">
-                <label class="form-label small mb-0">Firmware / version</label>
-                <input class="form-control form-control-sm" id="f-firmware" placeholder="V1600D 1.2.3">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label small mb-0">Model</label>
-                <input class="form-control form-control-sm" id="f-model" placeholder="V1600D">
-              </div>
-              <div class="col-md-12">
+              <div class="col-12">
                 <div class="form-text" id="brand-hint"></div>
               </div>
             </div>
           </div>
 
-          <div class="olt-only">
-            <h6 class="text-secondary border-bottom pb-1">SNMP</h6>
-            <div class="row g-2 mb-3">
-              <div class="col-4 col-md-3">
-                <label class="form-label small mb-0">Port</label>
-                <input type="number" class="form-control form-control-sm" id="f-snmp_port" placeholder="161">
+          <div class="accordion accordion-flush mb-3 olt-only" id="olt-advanced">
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 small" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#olt-advanced-snmp">
+                  Advanced SNMP &amp; polling
+                </button>
+              </h2>
+              <div id="olt-advanced-snmp" class="accordion-collapse collapse" data-bs-parent="#olt-advanced">
+                <div class="accordion-body">
+                  <div class="row g-2">
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">SNMP port</label>
+                      <input type="number" class="form-control form-control-sm" id="f-snmp_port" placeholder="161">
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">SNMP version</label>
+                      <select class="form-select form-select-sm" id="f-snmp_version">
+                        <option value="2c">2c</option>
+                        <option value="1">1</option>
+                      </select>
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">Retries</label>
+                      <input type="number" class="form-control form-control-sm" id="f-retries" placeholder="2">
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">Max ONUs / PON</label>
+                      <input type="number" class="form-control form-control-sm" id="f-max_onus_per_pon" placeholder="64 / 128">
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">Display order</label>
+                      <input type="number" class="form-control form-control-sm" id="f-display_order" placeholder="0">
+                    </div>
+                    <div class="col-4 col-md-3">
+                      <label class="form-label small mb-0">Rack</label>
+                      <input class="form-control form-control-sm" id="f-rack" placeholder="rack A">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Firmware</label>
+                      <input class="form-control form-control-sm" id="f-firmware" placeholder="V1600D 1.2.3">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Model</label>
+                      <input class="form-control form-control-sm" id="f-model" placeholder="V1600D">
+                    </div>
+                    <div class="col-12">
+                      <div class="form-text">
+                        Leave these at their defaults unless the OLT needs a non-standard agent.
+                        The brand is re-detected from <code>sysDescr</code> on every poll.
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="col-4 col-md-3">
-                <label class="form-label small mb-0">Version</label>
-                <select class="form-select form-select-sm" id="f-snmp_version">
-                  <option value="2c">2c</option>
-                  <option value="1">1</option>
-                </select>
+            </div>
+
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 small" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#olt-advanced-telnet">
+                  Telnet CLI telemetry <span class="text-secondary ms-1">(optional, read-only)</span>
+                </button>
+              </h2>
+              <div id="olt-advanced-telnet" class="accordion-collapse collapse" data-bs-parent="#olt-advanced">
+                <div class="accordion-body">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-telnet_enabled">
+                        <label class="form-check-label small" for="f-telnet_enabled">
+                          collect over Telnet when SNMP does not expose everything
+                        </label>
+                      </div>
+                      <div class="form-text">
+                        Adds CPU / RAM / temperature / SFP / ONU down-reason. Only
+                        <code>show</code> commands are sent; nothing is ever written.
+                      </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Telnet port</label>
+                      <input type="number" class="form-control form-control-sm" id="f-telnet_port" placeholder="23">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Username</label>
+                      <input class="form-control form-control-sm" id="f-telnet_username" placeholder="admin">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
+                      <input type="password" class="form-control form-control-sm" id="f-telnet_password" autocomplete="new-password">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Enable password <span class="text-secondary">(keep = blank)</span></label>
+                      <input type="password" class="form-control form-control-sm" id="f-telnet_enable_password" autocomplete="new-password">
+                    </div>
+                    <div class="col-6 col-md-4">
+                      <label class="form-label small mb-0">Command profile</label>
+                      <select class="form-select form-select-sm" id="f-telnet_profile"></select>
+                    </div>
+                    <div class="col-6 col-md-2">
+                      <label class="form-label small mb-0">Every (s)</label>
+                      <input type="number" class="form-control form-control-sm" id="f-telnet_interval_seconds" placeholder="300">
+                    </div>
+                    <div class="col-6 col-md-2">
+                      <label class="form-label small mb-0">Timeout (s)</label>
+                      <input type="number" step="0.5" class="form-control form-control-sm" id="f-telnet_timeout_seconds" placeholder="8">
+                    </div>
+                    <div class="col-6 col-md-2">
+                      <label class="form-label small mb-0">ONU details / cycle</label>
+                      <input type="number" class="form-control form-control-sm" id="f-telnet_detail_max" placeholder="8">
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="col-4 col-md-3">
-                <label class="form-label small mb-0">Retries</label>
-                <input type="number" class="form-control form-control-sm" id="f-retries" placeholder="2">
-              </div>
-              <div class="col-12">
-                <label class="form-label small mb-0">
-                  Read-only community
-                  <span class="text-secondary">(encrypted; edit: leave blank to keep)</span>
-                </label>
-                <input type="password" class="form-control form-control-sm" id="f-community" autocomplete="new-password" placeholder="your-community">
-                <div class="form-text" id="community-hint"></div>
+            </div>
+
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 small" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#olt-advanced-api">
+                  OLT HTTP API <span class="text-secondary ms-1">(optional, read-only)</span>
+                </button>
+              </h2>
+              <div id="olt-advanced-api" class="accordion-collapse collapse" data-bs-parent="#olt-advanced">
+                <div class="accordion-body">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-cdata_api_enabled">
+                        <label class="form-check-label small" for="f-cdata_api_enabled">
+                          read this OLT through its web API (<code>cgi-bin/h.cgi</code>)
+                        </label>
+                      </div>
+                      <div class="form-text">
+                        C-Data OLTs publish no ONU table over SNMP at all; the API supplies
+                        their ONU list, optical power, distance and last-down cause.
+                        A failed login is not retried for five minutes.
+                      </div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">HTTP port</label>
+                      <input type="number" class="form-control form-control-sm" id="f-cdata_api_port" placeholder="80">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Username</label>
+                      <input class="form-control form-control-sm" id="f-cdata_api_username" placeholder="admin">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
+                      <input type="password" class="form-control form-control-sm" id="f-cdata_api_password" autocomplete="new-password">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Every (s)</label>
+                      <input type="number" class="form-control form-control-sm" id="f-cdata_api_interval_seconds" placeholder="300">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-0">Timeout (s)</label>
+                      <input type="number" step="0.5" class="form-control form-control-sm" id="f-cdata_api_timeout_seconds" placeholder="12">
+                    </div>
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-cdata_api_optical">
+                        <label class="form-check-label small" for="f-cdata_api_optical">ONU optical power</label>
+                      </div>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-cdata_api_rates">
+                        <label class="form-check-label small" for="f-cdata_api_rates">live ONU rates</label>
+                      </div>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-cdata_api_mac">
+                        <label class="form-check-label small" for="f-cdata_api_mac">subscriber MAC table</label>
+                      </div>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex align-items-end">
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="f-cdata_api_tls">
+                        <label class="form-check-label small" for="f-cdata_api_tls">HTTPS</label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="olt-only">
-            <h6 class="text-secondary border-bottom pb-1 d-flex justify-content-between align-items-center">
-              <span>Telnet CLI telemetry <span class="text-secondary small">(optional, read-only)</span></span>
-              <span class="small text-secondary">CPU / RAM / temperature / SFP / ONU down-reason</span>
-            </h6>
-            <div class="row g-2 mb-3">
-              <div class="col-12">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-telnet_enabled">
-                  <label class="form-check-label small" for="f-telnet_enabled">collect over Telnet</label>
+          <div class="accordion accordion-flush mb-3 router-only" id="router-advanced">
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 small" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#router-advanced-opts">
+                  Advanced RouterOS options
+                </button>
+              </h2>
+              <div id="router-advanced-opts" class="accordion-collapse collapse" data-bs-parent="#router-advanced">
+                <div class="accordion-body">
+                  <div class="row g-2">
+                    <div class="col-12">
+                      <label class="form-label small mb-0">Uplink interfaces <span class="text-secondary">(comma separated, for throughput / SFP)</span></label>
+                      <input class="form-control form-control-sm" id="f-uplink_interfaces" placeholder="ether1, sfp1">
+                    </div>
+                    <div class="col-12">
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-use_tls"><label class="form-check-label small" for="f-use_tls">use TLS (api-ssl)</label></div>
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-verify_tls"><label class="form-check-label small" for="f-verify_tls">verify TLS</label></div>
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-sfp_monitor" checked><label class="form-check-label small" for="f-sfp_monitor">SFP optics</label></div>
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-monitor_traffic" checked><label class="form-check-label small" for="f-monitor_traffic">live traffic</label></div>
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-pppoe" checked><label class="form-check-label small" for="f-pppoe">PPPoE users</label></div>
+                      <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-dhcp_leases" checked><label class="form-check-label small" for="f-dhcp_leases">DHCP / ARP</label></div>
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Telnet port</label>
-                <input type="number" class="form-control form-control-sm" id="f-telnet_port" placeholder="23">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Username</label>
-                <input class="form-control form-control-sm" id="f-telnet_username" placeholder="admin">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
-                <input type="password" class="form-control form-control-sm" id="f-telnet_password" autocomplete="new-password">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Enable password <span class="text-secondary">(keep = blank)</span></label>
-                <input type="password" class="form-control form-control-sm" id="f-telnet_enable_password" autocomplete="new-password">
-              </div>
-              <div class="col-6 col-md-4">
-                <label class="form-label small mb-0">Command profile</label>
-                <select class="form-select form-select-sm" id="f-telnet_profile"></select>
-              </div>
-              <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Every (s)</label>
-                <input type="number" class="form-control form-control-sm" id="f-telnet_interval_seconds" placeholder="300">
-              </div>
-              <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">Timeout (s)</label>
-                <input type="number" step="0.5" class="form-control form-control-sm" id="f-telnet_timeout_seconds" placeholder="8">
-              </div>
-              <div class="col-6 col-md-2">
-                <label class="form-label small mb-0">ONU details / cycle</label>
-                <input type="number" class="form-control form-control-sm" id="f-telnet_detail_max" placeholder="8">
-              </div>
-              <div class="col-12">
-                <div class="form-text">
-                  Only <code>show</code> commands are sent; paging is answered with a space and
-                  nothing is ever written to the device. Test the login after saving with the
-                  <strong>Telnet</strong> button in the table.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="olt-only">
-            <h6 class="text-secondary border-bottom pb-1 d-flex justify-content-between align-items-center">
-              <span>OLT HTTP API <span class="text-secondary small">(optional, read-only)</span></span>
-              <span class="small text-secondary">C-Data: ONU list / optical / CPU / RAM / temperature</span>
-            </h6>
-            <div class="row g-2 mb-3">
-              <div class="col-12">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-cdata_api_enabled">
-                  <label class="form-check-label small" for="f-cdata_api_enabled">
-                    read this OLT through its web API (<code>cgi-bin/h.cgi</code>)
-                  </label>
-                </div>
-                <div class="form-text">
-                  C-Data OLTs publish no ONU table over SNMP at all - this is where
-                  their ONU list, optical power, distance and last-down cause come from.
-                </div>
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">HTTP port</label>
-                <input type="number" class="form-control form-control-sm" id="f-cdata_api_port" placeholder="80">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Username</label>
-                <input class="form-control form-control-sm" id="f-cdata_api_username" placeholder="admin">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
-                <input type="password" class="form-control form-control-sm" id="f-cdata_api_password" autocomplete="new-password">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Every (s)</label>
-                <input type="number" class="form-control form-control-sm" id="f-cdata_api_interval_seconds" placeholder="300">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Timeout (s)</label>
-                <input type="number" step="0.5" class="form-control form-control-sm" id="f-cdata_api_timeout_seconds" placeholder="12">
-              </div>
-              <div class="col-6 col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-cdata_api_optical">
-                  <label class="form-check-label small" for="f-cdata_api_optical">read ONU optical power</label>
-                </div>
-              </div>
-              <div class="col-6 col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-cdata_api_rates">
-                  <label class="form-check-label small" for="f-cdata_api_rates">read live ONU rates</label>
-                </div>
-              </div>
-              <div class="col-6 col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-cdata_api_mac">
-                  <label class="form-check-label small" for="f-cdata_api_mac">read subscriber MAC table</label>
-                </div>
-              </div>
-              <div class="col-6 col-md-3 d-flex align-items-end">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="f-cdata_api_tls">
-                  <label class="form-check-label small" for="f-cdata_api_tls">HTTPS</label>
-                </div>
-              </div>
-              <div class="col-12">
-                <div class="form-text">
-                  Only read modules are called (<code>sys_login</code>, <code>onu_list_get</code>,
-                  <code>ont_optical_list_get</code>, <code>sys_dev_mng</code> &hellip;) and nothing is
-                  ever written. The OLT locks an account after two bad passwords, so a failed
-                  login is not retried for five minutes. Test it with the <strong>API</strong>
-                  button in the table.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="router-only">
-            <h6 class="text-secondary border-bottom pb-1">RouterOS API</h6>
-            <div class="row g-2 mb-3">
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">API port</label>
-                <input type="number" class="form-control form-control-sm" id="f-api_port" placeholder="8728">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-0">Username</label>
-                <input class="form-control form-control-sm" id="f-username" placeholder="admin">
-              </div>
-              <div class="col-12 col-md-6">
-                <label class="form-label small mb-0">Password <span class="text-secondary">(keep = blank)</span></label>
-                <input type="password" class="form-control form-control-sm" id="f-password" autocomplete="new-password">
-              </div>
-              <div class="col-12">
-                <label class="form-label small mb-0">Uplink interfaces <span class="text-secondary">(comma separated, for throughput / SFP)</span></label>
-                <input class="form-control form-control-sm" id="f-uplink_interfaces" placeholder="ether1, sfp1">
               </div>
             </div>
           </div>
@@ -460,16 +506,8 @@
               <input type="number" class="form-control form-control-sm" id="f-interval_seconds" placeholder="600">
             </div>
             <div class="col-6 col-md-3">
-              <label class="form-label small mb-0">Timeout (s)</label>
-              <input type="number" step="0.5" class="form-control form-control-sm" id="f-timeout_seconds" placeholder="4 / 10">
-            </div>
-            <div class="col-12 router-only">
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-use_tls"><label class="form-check-label small" for="f-use_tls">use TLS (api-ssl)</label></div>
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-verify_tls"><label class="form-check-label small" for="f-verify_tls">verify TLS</label></div>
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-sfp_monitor" checked><label class="form-check-label small" for="f-sfp_monitor">SFP optics</label></div>
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-monitor_traffic" checked><label class="form-check-label small" for="f-monitor_traffic">live traffic</label></div>
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-pppoe" checked><label class="form-check-label small" for="f-pppoe">PPPoE users</label></div>
-              <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" id="f-dhcp_leases" checked><label class="form-check-label small" for="f-dhcp_leases">DHCP / ARP</label></div>
+              <label class="form-label small mb-0">SNMP timeout (s)</label>
+              <input type="number" step="0.5" class="form-control form-control-sm" id="f-timeout_seconds" placeholder="4">
             </div>
             <div class="col-12">
               <div class="form-check">

@@ -379,6 +379,18 @@ class OltCollector:
             info = self._collect_info(client)
             names = self._walk_map(client, self._oid("if_name"))
             descrs = self._walk_map(client, self._oid("if_descr"))
+            if not names and not descrs:
+                # Fail fast: walking the remaining six interface columns on a
+                # device that answers nothing costs several more timeouts and
+                # only delays the "unreachable" state in the UI.
+                self._last.clear()
+                message = "no interface table returned (wrong community or SNMP blocked?)"
+                self.stats["failures"] += 1
+                log.warning("OLT %s: %s", self.name, message)
+                fallback = self._telnet_only_snapshot(message)
+                if fallback is not None:
+                    return fallback
+                return OltSnapshot(self.name, False, error=message)
             oper = self._walk_map(client, self._oid("if_oper_status"))
             admin = self._walk_map(client, self._oid("if_admin_status"))
             in_oct = self._walk_map(client, self._oid("if_hc_in_octets"))
@@ -392,16 +404,6 @@ class OltCollector:
             if fallback is not None:
                 return fallback
             return OltSnapshot(self.name, False, error=str(exc))
-
-        if not names and not descrs:
-            self._last.clear()
-            message = "no interface table returned (wrong community or SNMP blocked?)"
-            self.stats["failures"] += 1
-            log.warning("OLT %s: %s", self.name, message)
-            fallback = self._telnet_only_snapshot(message)
-            if fallback is not None:
-                return fallback
-            return OltSnapshot(self.name, False, error=message)
 
         now = time.monotonic()
         stamp = utcnow_iso()
@@ -963,9 +965,19 @@ class OltCollector:
             state = reading.get("state")
             if state not in (None, "") and target.get("oper_status") is None:
                 lowered = str(state).strip().lower()
-                if lowered in ("online", "up", "active", "working", "normal", "registered"):
+                # "auto-configured" is how BDCOM/VSOL EPON report an ONU that
+                # is registered and forwarding - it is an *online* state, not
+                # a missing one.  Without it every Telnet-only EPON showed
+                # 0/N ONU up even though the active-onu table listed them all.
+                if lowered in (
+                    "online", "up", "active", "working", "normal", "registered",
+                    "auto-configured", "auto configured", "operational", "ok",
+                ):
                     target["oper_status"] = 1
-                elif lowered in ("offline", "down", "inactive", "los", "dying-gasp", "failed"):
+                elif lowered in (
+                    "offline", "down", "inactive", "los", "dying-gasp", "failed",
+                    "deregistered", "config-failed", "deactive", "disabled",
+                ):
                     target["oper_status"] = 2
 
             # optical values: only fill what SNMP did not provide
@@ -1713,16 +1725,30 @@ class OltCollector:
         # Which columns are due on this poll?  A field is always due while its
         # cache is empty, so a freshly added OLT fills up on its first poll;
         # afterwards the static columns are staggered to keep polls short.
+        slow_optical = self.brand == "vsol" and self.pon_type == "gpon"
         due_specs: list[tuple[str, str, dict[str, Any]]] = []
         for kind, field_name, spec in specs:
             every = max(1, int(spec.get("every_n_polls") or 1))
             phase = max(0, int(spec.get("phase") or 0))
             cache = self._optical_cache.setdefault(field_name, {})
-            due = not cache or every <= 1 or (self._optical_poll - phase) % every == 0
+            on_phase = (self._optical_poll - phase) % every == 0
+            if slow_optical and every > 1:
+                # Walking every column on the first poll of a V1600G1B takes
+                # ~23 minutes, longer than its own poll interval.  Honour the
+                # stagger from the very first poll instead; the remaining
+                # columns fill over the next few polls.
+                due = on_phase
+            else:
+                due = not cache or every <= 1 or on_phase
             # A vendor MAC+port table is the exact subscriber -> ONU map.  When
             # it is not persisted yet (first run after an upgrade), take one
             # snapshot immediately instead of waiting for the stagger phase.
-            if kind == "mac" and spec.get("port_oid") and not self._vendor_mac_map:
+            if (
+                kind == "mac"
+                and spec.get("port_oid")
+                and not self._vendor_mac_map
+                and not slow_optical
+            ):
                 due = True
             if warm_grace and cache and every <= 1:
                 due = False  # recent values from the previous run are shown

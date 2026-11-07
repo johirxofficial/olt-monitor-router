@@ -132,12 +132,17 @@ DEFAULT_ONU_TABLES: dict[str, Any] = {
 #    distance  .3.1.1.33          = 0.1 m
 # ---------------------------------------------------------------------------
 _VSOL_GPON_ONU_TABLES: dict[str, Any] = {
+    # One 526-row column costs ~170 s on the V1600G1B.  RX is always refreshed
+    # (it is the value the subscriber pages and alerts need); TX and module
+    # temperature alternate, so each poll walks two columns instead of three.
     "rx_power": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.7", "scale": 1.0},
-    "tx_power": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.6", "scale": 1.0},
-    "temperature": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.3", "scale": 1.0},
-    # The V1600G1B optical table is slow (~0.27 s/row with GETNEXT).  RX/TX/
-    # temperature stay on every poll; the static inventory columns are spread
-    # over different polls so no poll has to walk the whole table at once.
+    "tx_power": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.6", "scale": 1.0,
+                 "every_n_polls": 2, "phase": 0},
+    "temperature": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.3", "scale": 1.0,
+                    "every_n_polls": 2, "phase": 1},
+    # The V1600G1B optical table is slow (~0.27 s/row with GETNEXT).  The static
+    # inventory columns are spread over different polls so no poll has to walk
+    # the whole table at once.
     "voltage": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.4", "scale": 1.0,
                 "every_n_polls": 10, "phase": 2},
     "bias": {"oid": "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.5", "scale": 1.0,
@@ -151,13 +156,13 @@ _VSOL_GPON_ONU_TABLES: dict[str, Any] = {
     "mac": {
         "oid": "1.3.6.1.4.1.37950.1.1.5.10.3.5.1.3",
         "port_oid": "1.3.6.1.4.1.37950.1.1.5.10.3.5.1.5",
-        "every_n_polls": 5, "phase": 9,
+        "every_n_polls": 3, "phase": 9,
     },
     "vlan": {
         "oid": "1.3.6.1.4.1.37950.1.1.5.10.3.5.1.2",
         "port_oid": "1.3.6.1.4.1.37950.1.1.5.10.3.5.1.5",
         "scale": 1.0,
-        "every_n_polls": 5, "phase": 9,
+        "every_n_polls": 3, "phase": 9,
     },
 }
 
@@ -267,7 +272,15 @@ _BDCOM_EPON_ONU_TABLES: dict[str, Any] = {
 ONU_TABLE_PROFILES: dict[tuple[str, str], dict[str, Any]] = {
     ("vsol", "gpon"): _VSOL_GPON_ONU_TABLES,
     ("bdcom", "gpon"): _BDCOM_GPON_ONU_TABLES,
+    ("gpon", "gpon"): _BDCOM_GPON_ONU_TABLES,
     ("gpon_soho", "gpon"): _BDCOM_GPON_ONU_TABLES,
+    # Huawei / TBS / HSGQ GPON models use standard GPON interface names; the
+    # BDCOM table is the closest built-in optical/inventory map.  A firmware
+    # that does not implement those OIDs simply returns no rows, so choosing
+    # the brand never disables the SNMP interface/ONU collection.
+    ("huawei", "gpon"): _BDCOM_GPON_ONU_TABLES,
+    ("tbs", "gpon"): _BDCOM_GPON_ONU_TABLES,
+    ("hsgq", "gpon"): _BDCOM_GPON_ONU_TABLES,
     # an unknown/auto GPON is most likely the same BDCOM GP3600 family that is
     # deployed here; the optical walk simply returns no rows on other vendors
     ("auto", "gpon"): _BDCOM_GPON_ONU_TABLES,
@@ -278,6 +291,8 @@ ONU_TABLE_PROFILES: dict[tuple[str, str], dict[str, Any]] = {
     ("ecom", "epon"): _VSOL_EPON_ONU_TABLES,
     ("litex", "epon"): _VSOL_EPON_ONU_TABLES,
     ("avies", "epon"): _AVIES_EPON_ONU_TABLES,
+    ("hsgq", "epon"): _AVIES_EPON_ONU_TABLES,
+    ("tbs", "epon"): _VSOL_EPON_ONU_TABLES,
     ("bdcom", "epon"): _BDCOM_EPON_ONU_TABLES,
     ("dbc", "epon"): _BDCOM_EPON_ONU_TABLES,
 }
@@ -297,8 +312,12 @@ PON_OPTICAL_PROFILES: dict[tuple[str, str], dict[str, dict[str, Any]]] = {
         },
     },
 }
+PON_OPTICAL_PROFILES[("gpon", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
 PON_OPTICAL_PROFILES[("gpon_soho", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
 PON_OPTICAL_PROFILES[("auto", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
+PON_OPTICAL_PROFILES[("huawei", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
+PON_OPTICAL_PROFILES[("tbs", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
+PON_OPTICAL_PROFILES[("hsgq", "gpon")] = PON_OPTICAL_PROFILES[("bdcom", "gpon")]
 PON_OPTICAL_PROFILES[("bdcom", "epon")] = {
     # P3608B PON SFP table, indexed by the PON port ifIndex.  The RX column
     # reports -40.0 dBm on this firmware even with a healthy PON, so only the
@@ -322,9 +341,10 @@ MAC_TABLE_PROFILES: dict[tuple[str, str], dict[str, Any]] = {
         "vendor_port_oid": "1.3.6.1.4.1.37950.1.1.5.10.3.2.1.5",
         "vendor_vlan_oid": "1.3.6.1.4.1.37950.1.1.5.10.3.2.1.2",
         "vendor_port_regex": r"PON\s*(\d+)\s*:\s*ONU\s*(\d+)",
-        # the table caps at 800 rows; refresh on every second poll so the
+        # the table caps at 800 rows; refresh it every fourth poll so the
         # subscriber set stays reasonably fresh without doubling poll time
-        "every_n_polls": 2,
+        # (a V1600G1B poll already walks two slow optical columns)
+        "every_n_polls": 4,
     },
 }
 
@@ -343,7 +363,7 @@ DEFAULT_OLT: dict[str, Any] = {
     "rack": "",
     "display_order": 0,
     # -- identity / vendor --------------------------------------------
-    "brand": "auto",          # auto | vsol | bdcom | cdata | ecom | litex | avies | dbc | bdpon | btpon | photon | gpon_soho | generic
+    "brand": "auto",          # auto | vsol | bdcom | cdata | ecom | litex | avies | hsgq | huawei | tbs | dbc | bdpon | btpon | photon | gpon | generic
     "firmware": "",
     "model": "",
     "pon_type": "",           # "" -> the vendor profile decides (epon | gpon)
