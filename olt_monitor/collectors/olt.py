@@ -263,7 +263,12 @@ class OltCollector:
             return False, "host is not configured", {}
         oids = [
             oid
-            for oid in (self._oid("sys_descr"), self._oid("sys_name"), self._oid("if_number"))
+            for oid in (
+                self._oid("sys_descr"),
+                self._oid("sys_name"),
+                self._oid("sys_object_id"),
+                self._oid("if_number"),
+            )
             if oid
         ]
         if not oids:
@@ -287,10 +292,17 @@ class OltCollector:
         details = {
             "sys_descr": str(descr),
             "sys_name": values.get(self._oid("sys_name") or ""),
+            "sys_object_id": values.get(self._oid("sys_object_id") or ""),
             "if_number": _as_int(values.get(self._oid("if_number") or "")),
             "community_set": bool(self.cfg.get("community")),
             "snmp_version": str(self.cfg.get("snmp_version", "2c")),
-            "detected": vendors.detect(str(descr), None, self.cfg.get("brand"), self.cfg.get("pon_type")),
+            "detected": vendors.detect(
+                str(descr),
+                None,
+                self.cfg.get("brand"),
+                self.cfg.get("pon_type"),
+                values.get(self._oid("sys_object_id") or ""),
+            ),
         }
         return True, str(descr), details
 
@@ -424,6 +436,7 @@ class OltCollector:
                 [names.get(i) or descrs.get(i) for i in all_indexes],
                 self.cfg.get("brand"),
                 self.cfg.get("pon_type"),
+                info.get("sys_object_id"),
             )
         except Exception:  # pragma: no cover - detection must never break a poll
             detected = {"brand": "generic", "pon_type": self.pon_type,
@@ -442,7 +455,7 @@ class OltCollector:
                 vendors.pon_defaults(self.pon_type).get("default_max_onus") or 64
             )
             configured_brand = str(self.cfg.get("brand") or "auto").lower()
-            if configured_brand in ("", "auto", "generic"):
+            if configured_brand in ("", "auto", "generic", "gpon", "gpon_soho"):
                 profile = config_mod.ONU_TABLE_PROFILES.get(
                     (self.brand, self.pon_type)
                 )
@@ -1747,7 +1760,6 @@ class OltCollector:
                 kind == "mac"
                 and spec.get("port_oid")
                 and not self._vendor_mac_map
-                and not slow_optical
             ):
                 due = True
             if warm_grace and cache and every <= 1:

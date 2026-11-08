@@ -745,6 +745,29 @@ check("the generic GPON profile has no SOHO label",
 check("the legacy gpon_soho key resolves to generic GPON",
       vendors_mod.profile("gpon_soho")["pon_type"] == "gpon"
       and vendors_mod.brand_label("gpon_soho") == "Generic GPON")
+# "Generic GPON" is a placeholder, not a real vendor: the collector must still
+# recognise the hardware and pick that vendor's ONU/optical tables.  Choyani_DBC_GPON
+# (sysDescr V1600G1B) was saved as Generic GPON and therefore walked the BDCOM
+# OIDs, leaving every ONU without dBm / serial / user.
+_generic_vsol = vendors_mod.detect(
+    "V1600G1B", ["GPON01ONU1", "GPON0/1"], "gpon", "gpon",
+    "1.3.6.1.4.1.37950.1.1.5.10.14.1")
+from olt_monitor.config import ONU_TABLE_PROFILES as _ONU_TABLE_PROFILES  # noqa: E402
+
+check("a Generic GPON device is refined to its real vendor (VSOL)",
+      _generic_vsol["brand"] == "vsol" and _generic_vsol["pon_type"] == "gpon")
+check("the refined Generic GPON uses the VSOL optical OID tree",
+      _ONU_TABLE_PROFILES[(_generic_vsol["brand"], _generic_vsol["pon_type"])]["rx_power"]["oid"]
+      == "1.3.6.1.4.1.37950.1.1.6.1.1.3.1.7")
+check("sysObjectID alone is enough to refine a white-label Generic GPON",
+      vendors_mod.detect("V1600G1B", None, "gpon", "gpon",
+                         "1.3.6.1.4.1.37950.1.1.5.10.14.1")["brand"] == "vsol")
+check("a real manual brand is never overridden by detection",
+      vendors_mod.detect("V1600G1B", ["GPON0/1"], "bdcom", "gpon",
+                         "1.3.6.1.4.1.37950.1.1.5.10.14.1")["brand"] == "bdcom")
+check("BDCOM hardware saved as Generic GPON refines to BDCOM",
+      vendors_mod.detect("BDCOM(tm) GP3600-08B Software", ["GPON0/1", "GPON0/1:1"],
+                         "gpon", "gpon", "1.3.6.1.4.1.3320.1.405.0")["brand"] == "bdcom")
 _huawei = OltCollector({}, {"name": "HW", "host": "0.0.0.0", "brand": "huawei", "pon_type": "gpon"})
 check("Huawei gpon-onu_1/2/3:4 is classified as an ONU",
       _huawei.classify("gpon-onu_1/2/3:4")[0] == "onu")

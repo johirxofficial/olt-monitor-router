@@ -754,17 +754,46 @@ def telnet_profile_for(
 # ---------------------------------------------------------------------------
 #  auto-detection
 # ---------------------------------------------------------------------------
+#: Enterprise-number prefix of sysObjectID -> brand.  This is a much stronger
+#: fingerprint than sysDescr on firmware that reports only a model string
+#: ("V1600G1B") or a white-label name.
+_ENTERPRISE_BRANDS: dict[str, str] = {
+    "37950": "vsol",     # VSOL / V-SOL
+    "3320": "bdcom",     # BDCOM
+    "50224": "hsgq",     # HSGQ / AVIES AV-OLT
+    "2011": "huawei",    # Huawei / SmartAX
+}
+
+#: Brand hints that mean "I do not know the make".  For these the collector is
+#: still allowed to refine the vendor from sysDescr / sysObjectID /
+#: interface names.  Selecting "Generic GPON" used to disable that refinement,
+#: which made a VSOL chassis collect with the BDCOM OID tree and return no
+#: optical or inventory rows at all.
+_GENERIC_HINTS = {"", "auto", "generic", "gpon", "gpon_soho"}
+
+
+def enterprise_brand(sys_object_id: Any) -> str | None:
+    """Map a sysObjectID such as ``1.3.6.1.4.1.37950.1.1.5.10.14.1`` to a brand."""
+    text = str(sys_object_id or "").strip()
+    match = re.match(r"^\.?1\.3\.6\.1\.4\.1\.(\d+)", text)
+    if not match:
+        return None
+    return _ENTERPRISE_BRANDS.get(match.group(1))
+
+
 def detect(
     sys_descr: str | None = None,
     interface_names: Iterable[str] | None = None,
     brand_hint: str | None = None,
     pon_hint: str | None = None,
+    sys_object_id: Any = None,
 ) -> dict[str, Any]:
-    """Work out ``(brand, pon_type)`` from sysDescr / interface names.
+    """Work out ``(brand, pon_type)`` from sysDescr / sysObjectID / ifNames.
 
-    Returns ``{"brand", "pon_type", "label", "verified", "reason"}``.  An
-    explicit hint (what the user selected on the Devices page) always wins, so
-    detection can never override a deliberate choice.
+    Returns ``{"brand", "pon_type", "label", "verified", "reason"}``.  A
+    deliberate brand choice always wins; only the generic placeholders
+    (``auto`` / ``generic`` / ``gpon``) are refined, so the vendor OID profile
+    matches the hardware even when the OLT was added as "Generic GPON".
     """
     descr = str(sys_descr or "").strip()
     lowered = descr.lower()
@@ -773,7 +802,7 @@ def detect(
     hint = str(brand_hint or "").strip().lower()
     if hint == "gpon_soho":  # legacy key: normalise to the generic GPON profile
         hint = "gpon"
-    if hint and hint != "auto" and hint in PROFILES:
+    if hint and hint not in _GENERIC_HINTS and hint in PROFILES:
         prof = PROFILES[hint]
         pon_type = str(pon_hint or prof["pon_type"]).lower()
         return {
@@ -784,6 +813,9 @@ def detect(
             "reason": "selected manually",
         }
 
+    #: the brand to keep when no marker matches (never invent a vendor)
+    base_brand = hint if hint in ("gpon", "generic") else "generic"
+
     found: str | None = None
     reason = ""
     for key, prof in PROFILES.items():
@@ -793,6 +825,12 @@ def detect(
                 break
         if found:
             break
+
+    # sysObjectID enterprise number: authoritative even on white-label firmware
+    if found is None:
+        ent_brand = enterprise_brand(sys_object_id)
+        if ent_brand:
+            found, reason = ent_brand, f"sysObjectID enterprise {ent_brand}"
 
     # interface names are the second clue (some agents return a generic sysDescr)
     if found is None and names:
@@ -811,15 +849,22 @@ def detect(
             found, reason = "vsol", "interface names contain EPON"
 
     if found is None:
-        if "gpon" in lowered:
+        if base_brand == "gpon":
+            found = "gpon"
+        elif "gpon" in lowered and "epon" not in lowered:
             found, reason = "gpon", "sysDescr mentions GPON"
-        elif "epon" in lowered:
-            found, reason = "generic", "sysDescr mentions EPON"
         else:
             found, reason = "generic", "nothing recognised"
 
     prof = PROFILES[found]
-    pon_type = str(pon_hint or prof["pon_type"]).lower()
+    if pon_hint not in (None, "", "auto"):
+        pon_type = str(pon_hint).lower()
+    elif hint == "gpon":
+        # the device was saved as Generic GPON: keep that architecture even
+        # when the vendor profile we just detected is an EPON-first family
+        pon_type = "gpon"
+    else:
+        pon_type = str(prof["pon_type"]).lower()
     if pon_hint in (None, "", "auto"):
         # the interface names are authoritative about the PON architecture
         joined = " ".join(names).upper()

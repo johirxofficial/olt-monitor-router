@@ -30,7 +30,31 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.1
+## What's new in 3.5.2
+
+**A "Generic GPON" device now uses its real vendor OID profile**
+
+* **`Choyani_DBC_GPON` gets dBm, subscriber and ONU data.** It is a VSOL
+  V1600G1B (`sysDescr=V1600G1B`, enterprise `1.3.6.1.4.1.37950`) but had been
+  saved as **Generic GPON**, so the collector walked the BDCOM OID tree and
+  every optical/inventory column came back empty. Generic GPON / Generic EPON /
+  Auto are placeholders, not vendors: the collector now refines them from
+  `sysDescr`, `sysObjectID` and interface names on every poll and loads that
+  vendor's ONU and forwarding tables. All 301 ONUs now show Rx/Tx dBm,
+  temperature, voltage, distance, ONU MAC, and 261 subscribers are linked with
+  PPPoE uptime and dBm in both the ONU and Users lists.
+* **`sysObjectID` is now a first-class fingerprint.** A white-label firmware
+  whose `sysDescr` is only a model string still resolves through its enterprise
+  number (VSOL `37950`, BDCOM `3320`, HSGQ/AVIES `50224`, Huawei `2011`).
+* **A deliberate vendor choice is still respected.** Only `auto`, `generic` and
+  `gpon` are refined; selecting a real brand (VSOL, BDCOM, C-Data, …) is never
+  overridden by detection.
+* **The first subscriber-MAC snapshot is taken immediately** on a newly
+  repaired VSOL GPON, instead of waiting for its stagger phase, so the Users
+  page links subscribers on the first poll. Tx/voltage follow on the next poll
+  and the static serial/model columns over the next few polls.
+
+### From 3.5.1
 
 **Every configured OLT now returns usable data**
 
@@ -1339,6 +1363,11 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.2 is a vendor-profile fix release** — Generic GPON / Generic EPON /
+  Auto devices are refined to their real vendor from `sysDescr`, `sysObjectID`
+  and interface names, so a VSOL chassis saved as Generic GPON gets its
+  optical/inventory/subscriber tables (`Choyani_DBC_GPON` now shows dBm, users
+  and uptime). No database schema change is required.
 * **3.5.1 is a collection fix release** — BDCOM/VSOL `auto-configured` ONUs
   count as online, the Test button falls back to Telnet/HTTP API, the brand
   list includes HUAWEI/TBS/HSGQ/Generic GPON, and a failed poll preserves the
