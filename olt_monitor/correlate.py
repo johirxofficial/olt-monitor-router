@@ -276,16 +276,38 @@ def correlate(
 
 
 def build_fdb(olt_snapshots: Iterable[Any]) -> dict[str, tuple[str, int]]:
-    """Flatten the per-OLT ``mac_map`` of every snapshot into one lookup."""
+    """Flatten the per-OLT ``mac_map`` of every snapshot into one lookup.
+
+    Only entries that point at an *ONU* of that OLT are kept.  A bridge
+    forwarding table also contains every MAC learned on the uplink; those
+    entries used to win the ``setdefault`` race for a subscriber that another
+    OLT had correctly learned behind an ONU, so the user was left unlinked
+    even though the ONU was known.  ``OLT_5`` had 166 exact ONU matches but
+    only 3 linked subscribers for exactly this reason.
+    """
     combined: dict[str, tuple[str, int]] = {}
     for snapshot in olt_snapshots:
         name = getattr(snapshot, "name", None)
         mac_map = getattr(snapshot, "mac_map", None) or {}
+        onu_indexes = {
+            int(onu["ifindex"])
+            for onu in (getattr(snapshot, "onus", None) or [])
+            if onu.get("ifindex") is not None
+        }
         for mac, ifindex in mac_map.items():
             norm = normalise_mac(mac)
             if not norm or ifindex is None:
                 continue
-            combined.setdefault(norm, (str(name), int(ifindex)))
+            try:
+                target = int(ifindex)
+            except (TypeError, ValueError):
+                continue
+            # When the snapshot lists its ONUs, a mapping to an uplink/port
+            # ifIndex cannot identify a subscriber's ONU.  Keep it only for
+            # snapshot types that carry no ONU inventory at all.
+            if onu_indexes and target not in onu_indexes:
+                continue
+            combined.setdefault(norm, (str(name), target))
     return combined
 
 

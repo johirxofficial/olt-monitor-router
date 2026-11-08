@@ -30,7 +30,20 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.2
+## What's new in 3.5.3
+
+**Subscribers link to the right ONU even when the FDB also sees the uplink**
+
+* **Uplink-learned MACs no longer mask a real ONU match.** A bridge forwarding
+  table contains every MAC learned on the uplink as well as the MACs behind
+  ONUs. The first OLT to report a MAC used to win, so if that entry pointed at
+  an uplink port the subscriber stayed "not linked" even though another OLT had
+  the same MAC behind an ONU. `build_fdb` now keeps only entries whose target is
+  an ONU of that OLT. `OLT_5` went from **3 to 156** linked subscribers; the
+  ONU-detail / Users pages now show their dBm and uptime as well.
+* No schema change and no configuration change is required.
+
+### From 3.5.2
 
 **A "Generic GPON" device now uses its real vendor OID profile**
 
@@ -1363,6 +1376,10 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.3 is a subscriber-linking fix** — `build_fdb` ignores forwarding-table
+  entries learned on the uplink, so a MAC behind an ONU on one OLT is not masked
+  by another OLT's uplink entry. `OLT_5` links 156 subscribers instead of 3.
+  No schema or configuration change is required.
 * **3.5.2 is a vendor-profile fix release** — Generic GPON / Generic EPON /
   Auto devices are refined to their real vendor from `sysDescr`, `sysObjectID`
   and interface names, so a VSOL chassis saved as Generic GPON gets its

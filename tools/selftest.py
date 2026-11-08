@@ -1543,6 +1543,25 @@ check("the PON hits are counted", pon_counts.get("pon") == 2)
 check("correlation leaves the ONU name readable",
       pon_users[0].get("onu_name") == "pon1")
 
+# A bridge FDB also learns every MAC on the uplink.  Those entries must not win
+# over the OLT that really has the subscriber behind an ONU: OLT_5 had 166 exact
+# ONU matches but only 3 linked users because an earlier snapshot's uplink
+# entry claimed the MAC first.
+from types import SimpleNamespace as _NS  # noqa: E402
+from olt_monitor.correlate import build_fdb as _build_fdb  # noqa: E402
+
+_uplink_only = _NS(name="UPSTREAM", mac_map={"00:AA:00:00:00:01": 9},
+                   onus=[{"ifindex": 10}, {"ifindex": 11}])
+_real_onu = _NS(name="OLT_5", mac_map={"00:AA:00:00:00:01": 45},
+                onus=[{"ifindex": 45}, {"ifindex": 46}])
+_missing = _NS(name="OLT_5", mac_map={"00:AA:00:00:00:02": 9},
+               onus=[{"ifindex": 45}])
+_fdb = _build_fdb([_uplink_only, _real_onu, _missing])
+check("an uplink FDB entry cannot mask another OLT's real ONU match",
+      _fdb.get("00:AA:00:00:00:01") == ("OLT_5", 45))
+check("an FDB entry learned only on the uplink is ignored",
+      "00:AA:00:00:00:02" not in _fdb)
+
 # An exact ONU MAC must beat a stale / wrong forwarding-table entry.  GPON
 # ONUs bridge the customer router, so the caller-id is the ONU MAC; the FDB
 # bridge-port mapping is the less trustworthy source on that firmware.
