@@ -30,7 +30,20 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.5
+## What's new in 3.5.6
+
+**A device with no ONU table still fills the last-down column**
+
+* Some C-Data / generic OLTs answer MIB-II but occasionally return no ONU table
+  at all (their HTTP API or Telnet is the real inventory source). The last-good
+  ONU rows are kept, but an ONU that is already down used to stay blank on the
+  "Last down" column because no row was available to stamp.
+* The poller now backfills those already-down rows on any successful poll, even
+  when the device reports zero ONUs, so the timestamp completes as soon as the
+  device answers once.
+* No schema change and no configuration change is required.
+
+### From 3.5.5
 
 **Already-offline ONUs get a last-down time on the first poll**
 
@@ -1401,6 +1414,9 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.6 keeps the last-down column complete** when an OLT answers MIB-II but
+  returns no ONU table on that poll: the already-down rows are still backfilled
+  instead of staying blank. No schema or configuration change is required.
 * **3.5.5 is a last-down backfill release** — ONUs that were already offline when
   3.5.4 was deployed get their "Last down" timestamp on the first poll, instead
   of waiting for the next state change. No schema or configuration change.

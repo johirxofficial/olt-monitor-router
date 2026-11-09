@@ -689,6 +689,23 @@ check("a failed poll keeps the last known counts and last-good time",
       and failed_status["stale"] is True
       and failed_status["last_good"] == "2026-11-07T10:00:00+00:00")
 
+# A C-Data OLT can answer MIB-II while returning no ONU table at all.  The
+# last-good ONU rows stay, and an ONU that is already down must still get its
+# first last-down timestamp instead of staying blank forever.
+db_execute(
+    db_file,
+    "INSERT INTO olt_onu_current (olt_name, ifindex, if_name, oper_status)"
+    " VALUES ('OLT-A', 99, 'EPON0/1:1', 2)",
+)
+monitor3.store_olt(served, served.collect())
+backfilled = db_query(
+    db_file,
+    "SELECT last_down_at FROM olt_onu_current"
+    " WHERE olt_name='OLT-A' AND ifindex=99",
+)[0]
+check("a poll with no ONU table still backfills an already-down ONU",
+      bool(backfilled.get("last_down_at")))
+
 monitor3.stop()
 
 print()

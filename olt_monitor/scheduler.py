@@ -786,6 +786,18 @@ class Monitor:
             # column is populated on every vendor (not only CLI EPON).
             mark_last_down(snapshot.onus, previous_rows, stamp)
             upsert_many(self.db_path, "olt_onu_current", ["olt_name", "ifindex"], snapshot.onus)
+            if not snapshot.onus:
+                # Some C-Data / generic devices answer MIB-II but return no ONU
+                # table on a given poll (their HTTP API / Telnet is the real
+                # source).  The last-good ONU rows are kept, but an ONU that is
+                # already down still needs its first timestamp, otherwise the
+                # "Last down" column stays blank forever on that device.
+                execute(
+                    self.db_path,
+                    "UPDATE olt_onu_current SET last_down_at = ?"
+                    " WHERE olt_name = ? AND oper_status = 2 AND last_down_at IS NULL",
+                    [stamp, snapshot.name],
+                )
 
             # A re-classification can move an interface between tables (an ONU
             # whose name carries a description used to land in the port table).
