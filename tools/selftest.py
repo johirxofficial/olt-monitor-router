@@ -1579,6 +1579,32 @@ check("an exact ONU MAC wins over an FDB bridge-port guess",
       and prio_users[0].get("onu_pon") == 3)
 
 print()
+print("== ONU last-down time (every vendor) ==")
+from olt_monitor.scheduler import mark_last_down as _mark_last_down  # noqa: E402
+
+_stamp = "2026-11-09T00:00:00+00:00"
+_last_down_rows = [
+    {"ifindex": 1, "oper_status": 2},                      # up -> down
+    {"ifindex": 2, "oper_status": 1},                      # still up
+    {"ifindex": 3, "oper_status": 2,
+     "last_down_at": "2026-11-01T00:00:00+00:00"},         # still down
+    {"ifindex": 4, "oper_status": 2},                      # new ONU, down
+]
+_mark_last_down(_last_down_rows, {
+    1: {"oper_status": 1},
+    2: {"oper_status": 2, "last_down_at": "2026-11-01T00:00:00+00:00"},
+    3: {"oper_status": 2, "last_down_at": "2026-11-01T00:00:00+00:00"},
+}, _stamp)
+check("an ONU that just went down gets a last-down timestamp",
+      _last_down_rows[0].get("last_down_at") == _stamp)
+check("an ONU that stayed down keeps its original timestamp",
+      _last_down_rows[2].get("last_down_at") == "2026-11-01T00:00:00+00:00")
+check("an ONU that is up is not stamped",
+      "last_down_at" not in _last_down_rows[1])
+check("a new ONU already down is stamped on its first poll",
+      _last_down_rows[3].get("last_down_at") == _stamp)
+
+print()
 print("== per-account permissions ==")
 from olt_monitor import auth  # noqa: E402
 

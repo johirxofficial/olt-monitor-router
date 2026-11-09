@@ -109,8 +109,12 @@
             <tr><th>Distance</th><td>{{ onu.distance_m if onu.distance_m is not none else 'n/a' }}{{ ' m' if onu.distance_m is not none }}</td></tr>
             <tr><th>Last down</th>
               <td>
-                {% if onu.last_down_reason %}
-                  <span class="badge {{ 'bg-danger' if onu.oper_status == 2 else 'bg-secondary' }}">{{ onu.last_down_reason }}</span>
+                {% if onu.last_down_reason or onu.last_down_at %}
+                  {% if onu.last_down_reason %}
+                    <span class="badge {{ 'bg-danger' if onu.oper_status == 2 else 'bg-secondary' }}">{{ onu.last_down_reason }}</span>
+                  {% else %}
+                    <span class="badge {{ 'bg-danger' if onu.oper_status == 2 else 'bg-secondary' }}">down</span>
+                  {% endif %}
                   {% if onu.last_down_at %}<span class="small text-secondary ms-1">{{ onu.last_down_at | local }}</span>{% endif %}
                 {% else %}<span class="text-secondary">none recorded</span>{% endif %}
               </td></tr>

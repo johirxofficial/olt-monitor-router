@@ -30,7 +30,21 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.3
+## What's new in 3.5.4
+
+**Every ONU now shows when it last went down**
+
+* **The ONU list and ONU detail page show a real "Last down" time on every
+  vendor**, including SNMP-only OLTs that do not publish an inactive-ONU table.
+  The poller records the up -> down transition itself, so the column is filled
+  for VSOL, BDCOM, C-Data, AVIES, HUAWEI and every other profile, not just the
+  CLI-driven EPON boxes. An ONU that stays down keeps its original timestamp,
+  and the value survives later polls and restarts.
+* **The timestamp is preserved with the rest of the last-good ONU data.** A
+  poll that omits a column no longer blanks the last down time or reason.
+* No schema change and no configuration change is required.
+
+### From 3.5.3
 
 **Subscribers link to the right ONU even when the FDB also sees the uplink**
 
@@ -1376,6 +1390,10 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.4 is an ONU-time release** — the poller records the up -> down
+  transition, so the ONU list / ONU detail "Last down" column is populated on
+  every vendor (including SNMP-only OLTs), and the timestamp survives later
+  polls and restarts. No schema or configuration change is required.
 * **3.5.3 is a subscriber-linking fix** — `build_fdb` ignores forwarding-table
   entries learned on the uplink, so a MAC behind an ONU on one OLT is not masked
   by another OLT's uplink entry. `OLT_5` links 156 subscribers instead of 3.

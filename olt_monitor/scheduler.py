@@ -81,6 +81,36 @@ def _pon_from_onu_name(value: Any) -> int | None:
     return None
 
 
+def _onu_is_down(value: Any) -> bool:
+    """True when an SNMP ``ifOperStatus`` / ONU state means "down"."""
+    try:
+        return int(value) == 2
+    except (TypeError, ValueError):
+        return False
+
+
+def mark_last_down(
+    rows: list[dict[str, Any]],
+    previous: dict[int, dict[str, Any]],
+    stamp: str,
+) -> None:
+    """Record when each ONU was first seen going down.
+
+    Most SNMP OLTs do not expose a per-ONU "last down" time, so the ONU and
+    Users pages were blank for them while CLI-driven EPON boxes showed a time.
+    The poller can observe the up -> down transition itself, which gives every
+    vendor a real timestamp.  A row that is already down keeps its original
+    timestamp (``previous`` / the carried value); only a transition is stamped.
+    """
+    for row in rows:
+        try:
+            old = previous.get(int(row.get("ifindex"))) or {}
+        except (TypeError, ValueError):
+            old = {}
+        if _onu_is_down(row.get("oper_status")) and not _onu_is_down(old.get("oper_status")):
+            row["last_down_at"] = stamp
+
+
 def _access_interface(
     user: dict[str, Any],
     snapshot: Any,
@@ -722,13 +752,14 @@ class Monitor:
                 "pppoe_user", "mac", "serial", "model", "vendor", "sw_version",
                 "onu_type", "vlan", "rx_power_dbm", "tx_power_dbm",
                 "olt_rx_power_dbm", "temperature_c", "voltage_v",
-                "bias_current_ma", "distance_m",
+                "bias_current_ma", "distance_m", "last_down_reason",
+                "last_down_at",
             )
             previous_rows = {
                 row["ifindex"]: row
                 for row in query(
                     self.db_path,
-                    "SELECT ifindex, " + ", ".join(carried_onu)
+                    "SELECT ifindex, oper_status, " + ", ".join(carried_onu)
                     + " FROM olt_onu_current WHERE olt_name = ?",
                     [snapshot.name],
                 )
@@ -745,6 +776,9 @@ class Monitor:
                             # the collector deliberately left this reading NULL.
                             continue
                         row[field] = old_value
+            # An ONU that just went down gets a timestamp, so the "Last down"
+            # column is populated on every vendor (not only CLI EPON).
+            mark_last_down(snapshot.onus, previous_rows, stamp)
             upsert_many(self.db_path, "olt_onu_current", ["olt_name", "ifindex"], snapshot.onus)
 
             # A re-classification can move an interface between tables (an ONU

@@ -203,10 +203,14 @@
           {{ (row.bias_current_ma | round(1)) ~ 'mA' if row.bias_current_ma is not none else '' }}
         </td>
         <td class="small">
-          {% if row.last_down_reason %}
-            <span class="{{ 'text-danger fw-semibold' if row.oper_status == 2 else 'text-secondary' }}">
-              {{ row.last_down_reason }}
-            </span>
+          {% if row.last_down_reason or row.last_down_at %}
+            {% if row.last_down_reason %}
+              <span class="{{ 'text-danger fw-semibold' if row.oper_status == 2 else 'text-secondary' }}">
+                {{ row.last_down_reason }}
+              </span>
+            {% elif row.oper_status == 2 %}
+              <span class="text-danger fw-semibold">down</span>
+            {% endif %}
             {% if row.last_down_at %}<div class="text-secondary">{{ row.last_down_at | local }}</div>{% endif %}
           {% else %}<span class="text-secondary">-</span>{% endif %}
         </td>
