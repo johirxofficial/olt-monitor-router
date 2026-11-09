@@ -30,7 +30,18 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.4
+## What's new in 3.5.5
+
+**Already-offline ONUs get a last-down time on the first poll**
+
+* 3.5.4 recorded new up -> down transitions, but an ONU that was already down
+  when the feature was first deployed stayed blank until it next changed state.
+  The poller now backfills the timestamp on the first poll, so every currently
+  offline ONU shows a real "Last down" time immediately, and transitions keep
+  updating it afterwards.
+* No schema change and no configuration change is required.
+
+### From 3.5.4
 
 **Every ONU now shows when it last went down**
 
@@ -1390,6 +1401,9 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.5 is a last-down backfill release** — ONUs that were already offline when
+  3.5.4 was deployed get their "Last down" timestamp on the first poll, instead
+  of waiting for the next state change. No schema or configuration change.
 * **3.5.4 is an ONU-time release** — the poller records the up -> down
   transition, so the ONU list / ONU detail "Last down" column is populated on
   every vendor (including SNMP-only OLTs), and the timestamp survives later

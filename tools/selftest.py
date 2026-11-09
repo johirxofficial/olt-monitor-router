@@ -1589,11 +1589,13 @@ _last_down_rows = [
     {"ifindex": 3, "oper_status": 2,
      "last_down_at": "2026-11-01T00:00:00+00:00"},         # still down
     {"ifindex": 4, "oper_status": 2},                      # new ONU, down
+    {"ifindex": 5, "oper_status": 2},                      # already down, never stamped
 ]
 _mark_last_down(_last_down_rows, {
     1: {"oper_status": 1},
     2: {"oper_status": 2, "last_down_at": "2026-11-01T00:00:00+00:00"},
     3: {"oper_status": 2, "last_down_at": "2026-11-01T00:00:00+00:00"},
+    5: {"oper_status": 2},
 }, _stamp)
 check("an ONU that just went down gets a last-down timestamp",
       _last_down_rows[0].get("last_down_at") == _stamp)
@@ -1603,6 +1605,8 @@ check("an ONU that is up is not stamped",
       "last_down_at" not in _last_down_rows[1])
 check("a new ONU already down is stamped on its first poll",
       _last_down_rows[3].get("last_down_at") == _stamp)
+check("an already-down ONU without a timestamp is backfilled",
+      _last_down_rows[4].get("last_down_at") == _stamp)
 
 print()
 print("== per-account permissions ==")

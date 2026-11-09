@@ -107,7 +107,13 @@ def mark_last_down(
             old = previous.get(int(row.get("ifindex"))) or {}
         except (TypeError, ValueError):
             old = {}
-        if _onu_is_down(row.get("oper_status")) and not _onu_is_down(old.get("oper_status")):
+        stamped = row.get("last_down_at") or old.get("last_down_at")
+        # Stamp a transition, and also backfill an ONU that is already down but
+        # has no recorded time (first poll after an upgrade, or a device that
+        # was already offline when it was added).
+        if _onu_is_down(row.get("oper_status")) and (
+            not _onu_is_down(old.get("oper_status")) or not stamped
+        ):
             row["last_down_at"] = stamp
 
 
