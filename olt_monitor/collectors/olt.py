@@ -970,7 +970,11 @@ class OltCollector:
             if target is None:
                 # CLI-only inventory (BDPON / BTPON / PHOTON): SNMP has no ONU
                 # interface for it, so synthesise a stable row.
-                target = _blank_onu_row(self.name, int(pon), int(onu_id), utcnow_iso())
+                target = _blank_onu_row(
+                    self.name, int(pon), int(onu_id), utcnow_iso(),
+                    if_name=reading.get("if_name"),
+                    if_descr=reading.get("if_descr"),
+                )
                 onus.append(target)
                 by_pon_onu[(int(pon), int(onu_id))] = target
 
@@ -2084,18 +2088,27 @@ def _blank_like(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {key: None for key in template}
 
 
-def _blank_onu_row(olt_name: str, pon: int, onu_id: int, stamp: str) -> dict[str, Any]:
+def _blank_onu_row(
+    olt_name: str,
+    pon: int,
+    onu_id: int,
+    stamp: str,
+    if_name: str | None = None,
+    if_descr: str | None = None,
+) -> dict[str, Any]:
     """A complete ``olt_onu_current`` row for a CLI-only ONU.
 
     BDPON / BTPON / PHOTON expose no ONU interfaces over SNMP, so their ONUs
     are discovered through Telnet.  Every column the regular SNMP path writes
     must be present here too: ``db.upsert_many`` uses the first row's keys.
+    When the CLI printed the vendor's real interface name (BDCOM
+    ``EPON0/1:5``), keep it instead of inventing ``pon1:5``.
     """
     return {
         "olt_name": olt_name,
         "ifindex": cdata_mod.onu_ifindex(pon, onu_id),
-        "if_name": f"pon{pon}:{onu_id}",
-        "if_descr": f"EPON ONU {pon}/{onu_id}",
+        "if_name": str(if_name or f"pon{pon}:{onu_id}"),
+        "if_descr": str(if_descr or f"EPON ONU {pon}/{onu_id}"),
         "pon": pon,
         "onu_id": onu_id,
         "admin_status": 1,

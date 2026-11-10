@@ -756,6 +756,7 @@ def parse_bdcom_inventory(text: str) -> dict[int, dict[str, Any]]:
                 state = token
                 break
         out[onu_id] = {
+            "if_name": match.group(1),
             "mac": _mac_text(match.group(4)),
             "vendor": match.group(2),
             "model": match.group(3),
@@ -778,6 +779,7 @@ def parse_bdcom_active(text: str) -> list[dict[str, Any]]:
         distance = number(match.group(5))
         out.append(
             {
+                "if_name": match.group(1),
                 "pon": _ifname_pon(match.group(1)),
                 "onu_id": onu_id,
                 "mac": _mac_text(match.group(2)),

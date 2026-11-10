@@ -65,17 +65,6 @@
   </div>
 </div>
 
-{% if summary.pon_level %}
-<div class="alert alert-info py-2 small">
-  <i class="bi bi-info-circle"></i>
-  <strong>{{ summary.pon_level }} PPPoE subscriber(s)</strong> are linked at
-  <strong>PON level</strong>: this OLT's forwarding table reports <code>ponN</code>
-  instead of the individual ONU, so they cannot be pinned to one ONU. Every ONU row
-  shows how many users share its PON — click that count to open the PON and see the
-  user names, ONU MACs, optical power and MikroTik interface.
-</div>
-{% endif %}
-
 <form class="row g-2 align-items-end mb-3" method="get">
   {% if olt_names | length > 1 %}
   <div class="col-auto">
@@ -140,7 +129,6 @@
         <th>MikroTik iface</th>
         <th class="text-end">Temp / volt / bias</th>
         <th>Last down</th>
-        <th class="text-end">Traffic</th>
       </tr>
     </thead>
     <tbody>
@@ -175,26 +163,11 @@
         <td>
           {% if user %}
             <a href="/users?q={{ user | urlencode }}">{{ user }}</a>
-          {% elif row.pon_user_count %}
-            <a class="text-decoration-none" href="/pon?olt={{ row.olt_name | urlencode }}&pon={{ row.pon }}"
-               title="This OLT's forwarding table names the PON, not the ONU - open the PON to see every user">
-              pon{{ row.pon }} &middot; {{ row.pon_user_count }} users
-            </a>
-            <div class="small text-secondary">PON-level</div>
-            {% if row.pon_user_names %}
-            <div class="small text-secondary text-truncate" style="max-width: 13rem;"
-                 title="{{ row.pon_user_names | join(', ') }}{{ ' +' ~ row.pon_user_more ~ ' more' if row.pon_user_more }}">
-              {{ row.pon_user_names | join(', ') }}{% if row.pon_user_more %} +{{ row.pon_user_more }}{% endif %}
-            </div>
-            {% endif %}
           {% else %}<span class="text-secondary">-</span>{% endif %}
         </td>
         <td class="small">
           {% if row.linked_iface %}
             <code>{{ row.linked_iface }}</code>
-          {% elif row.pon_iface %}
-            <code>{{ row.pon_iface }}</code>
-            <div class="small text-secondary">PON-level</div>
           {% else %}<span class="text-secondary">-</span>{% endif %}
         </td>
         <td class="text-end small text-nowrap">
@@ -214,10 +187,9 @@
             {% if row.last_down_at %}<div class="text-secondary">{{ row.last_down_at | local }}</div>{% endif %}
           {% else %}<span class="text-secondary">-</span>{% endif %}
         </td>
-        <td class="text-end small">{{ row.in_bps | bps }} / {{ row.out_bps | bps }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="15" class="text-secondary">No ONUs match the filter.</td></tr>
+      <tr><td colspan="{{ 14 if olt_names | length > 1 else 13 }}" class="text-secondary">No ONUs match the filter.</td></tr>
     {% endfor %}
     </tbody>
   </table>

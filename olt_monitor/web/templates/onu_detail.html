@@ -122,9 +122,6 @@
               <td>
                 {% if onu.pppoe_user %}
                   <a href="/users?q={{ onu.pppoe_user }}">{{ onu.pppoe_user }}</a>
-                {% elif pon_users %}
-                  <a href="/pon?olt={{ olt | urlencode }}&pon={{ onu.pon }}">{{ pon_users | length }} users on pon{{ onu.pon }}</a>
-                  <span class="badge bg-info-subtle text-info-emphasis ms-1">PON-level</span>
                 {% else %}<span class="text-secondary">not linked</span>{% endif %}
               </td></tr>
             <tr><th>Last poll</th><td class="small text-secondary">{{ onu.updated_at | local }}</td></tr>
@@ -182,43 +179,6 @@
     </tbody>
   </table>
 </div>
-
-{% if pon_users %}
-<h6 class="mt-4">
-  <i class="bi bi-diagram-3"></i> PPPoE sessions linked to this PON
-  <span class="text-secondary small">({{ pon_users | length }})</span>
-</h6>
-<div class="alert alert-info py-2 small">
-  <i class="bi bi-info-circle"></i>
-  These subscribers were matched at <strong>PON level</strong>: this OLT's forwarding table
-  reports <code>pon{{ onu.pon }}</code> instead of the individual ONU, so they cannot be
-  pinned to one ONU.
-</div>
-<div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
-    <thead class="table-light">
-      <tr>
-        <th>User</th><th>Router</th><th>IP</th><th>MAC (caller-id)</th><th>Vendor</th>
-        <th class="text-end">Uptime</th><th class="text-end">In</th><th class="text-end">Out</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for u in pon_users %}
-      <tr>
-        <td><a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}"><strong>{{ u.name }}</strong></a></td>
-        <td class="small text-secondary">{{ u.router_name }}</td>
-        <td>{{ u.address or '-' }}</td>
-        <td class="small">{{ u.caller_id or '-' }}</td>
-        <td class="small">{{ u.caller_id | oui if u.caller_id else '-' }}</td>
-        <td class="text-end">{{ u.uptime_seconds | uptime }}</td>
-        <td class="text-end">{{ u.bytes_in | bytes }}</td>
-        <td class="text-end">{{ u.bytes_out | bytes }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
 
 {% endblock %}
 

@@ -30,7 +30,29 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.6
+## What's new in 3.5.7
+
+**Per-ONU lists show only that ONU's own subscriber**
+
+* **PON-level subscribers are no longer repeated on every ONU of the PON.**
+  On firmware whose forwarding table names only `ponN`, the ONUs page used to
+  print the same "ponN · N users" block (and the same names) on every ONU row,
+  which made it look as though all those subscribers were on each ONU. An ONU
+  row now shows a user only when the OLT pinned that user to the exact ONU.
+  PON-level subscribers remain available on the **PON detail** page, where the
+  PON is the subject.
+* **The "has PPPoE" filter is exact too** - it matches only ONUs with a real
+  subscriber link.
+* **CLI-only ONUs keep the OLT's real interface name** (`EPON0/1:5`) instead of
+  an invented `pon1:5`. This also lets the forwarding table match an ONU
+  exactly: `Baasar_BDCOM` now links **50 subscribers to exact ONUs** instead of
+  only PON-level guesses.
+* **Removed the per-ONU "Traffic" column** from the ONUs list. Most OLT profiles
+  do not publish per-ONU throughput, so the column was almost always empty.
+* The ONU detail page and quick-search ONU results follow the same rule.
+* No schema change and no configuration change is required.
+
+### From 3.5.6
 
 **A device with no ONU table still fills the last-down column**
 
@@ -1414,6 +1436,12 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.7 keeps per-ONU lists honest** — PON-level subscribers are no longer
+  repeated on every ONU row, the "has PPPoE" filter matches exact ONU links
+  only, the empty per-ONU Traffic column is gone, and CLI-only ONUs keep the
+  vendor's real interface name so their MAC table links exactly
+  (`Baasar_BDCOM`: 50 exact links). PON-level subscribers remain on the PON
+  detail page. No schema or configuration change.
 * **3.5.6 keeps the last-down column complete** when an OLT answers MIB-II but
   returns no ONU table on that poll: the already-down rows are still backfilled
   instead of staying blank. No schema or configuration change is required.

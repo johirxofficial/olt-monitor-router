@@ -104,7 +104,7 @@
       <thead class="table-light">
         <tr>
           <th>ONU</th><th>OLT / PON</th><th>MAC</th><th>Vendor</th><th>Model / serial</th>
-          <th>State</th><th class="text-end">Rx / Tx</th><th>PPPoE users on this PON</th>
+          <th>State</th><th class="text-end">Rx / Tx</th><th>PPPoE user</th>
         </tr>
       </thead>
       <tbody>
@@ -134,11 +134,8 @@
             {{ o.tx_power_dbm | dbm if o.tx_power_dbm is not none else '-' }}
           </td>
           <td class="small">
-            {% if o.pon_users %}
-              {% for u in o.pon_users[:4] %}
-                <a href="/user?router={{ u.router_name | urlencode }}&name={{ u.name | urlencode }}">{{ u.name }}</a>{% if not loop.last %}, {% endif %}
-              {% endfor %}
-              {% if o.pon_users | length > 4 %}<span class="text-secondary">+{{ (o.pon_users | length) - 4 }} more</span>{% endif %}
+            {% if o.pppoe_user %}
+              <a href="/users?q={{ o.pppoe_user | urlencode }}">{{ o.pppoe_user }}</a>
             {% else %}-{% endif %}
           </td>
         </tr>

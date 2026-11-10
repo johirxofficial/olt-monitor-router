@@ -961,7 +961,7 @@ bdcom_merge._merge_telnet(
     [],
     {"onus": [
         {"pon": 1, "onu_id": 1, "mac": "80:76:30:61:AE:C0",
-         "state": "auto-configured"},
+         "if_name": "EPON0/1:1", "state": "auto-configured"},
         {"pon": 1, "onu_id": 2, "mac": "F4:B8:C1:3A:B6:1F",
          "state": "deregistered"},
     ]},
@@ -969,6 +969,10 @@ bdcom_merge._merge_telnet(
 check("BDCOM 'auto-configured' is an online ONU",
       bdcom_rows[0]["oper_status"] == 1
       and bdcom_rows[1]["oper_status"] == 2)
+check("a CLI-only ONU keeps the vendor's real interface name",
+      bdcom_rows[0]["if_name"] == "EPON0/1:1")
+check("a CLI without an interface name still gets a stable fallback",
+      bdcom_rows[1]["if_name"] == "pon1:2")
 
 # ---- C-Data FD13xx (EPON) ------------------------------------------------
 cdata_rows = tp.parse_cdata_inventory(
@@ -994,6 +998,17 @@ check("C-Data has a dedicated Telnet profile",
       and vendors_mod.telnet_profile("cdata_epon")["commands"]["macs"]["cmd"] == "show mac all"
       and vendors_mod.telnet_profile("cdata_epon")["commands"]["onu_table"]["cmd"]
       == "show ont info all")
+
+bdcom_active = tp.parse_bdcom_active(
+    "EPON0/1:5        f4b8.c4c4.5689 deregistered  -  902  520\n"
+)
+bdcom_inventory = tp.parse_bdcom_inventory(
+    "EPON0/1:5        ZTE      1GE        f4b8.c4c4.5689 N/A\n"
+    "    static   deregistered     power-off\n"
+)
+check("BDCOM's CLI interface name is kept, not replaced by pon1:5",
+      bdcom_active[0]["if_name"] == "EPON0/1:5"
+      and bdcom_inventory[5]["if_name"] == "EPON0/1:5")
 
 cdata_merge = OltCollector({}, {
     "name": "C", "host": "0.0.0.0", "brand": "cdata", "pon_type": "epon",
@@ -1664,7 +1679,7 @@ check("an IP search finds the same user",
 check("a MAC search finds the same user",
       any(row["name"] == "search-target" for row in webapp.quick_search(None, "0000.0caa.bbcc")["users"]))
 
-# ---- PON-level links are visible on the ONU list (Photon / BDPON / BTPON) --
+# ---- PON-level links stay on the PON page, never on an ONU row -----------
 db_mod.upsert(
     None, "olt_onu_current", ["olt_name", "ifindex"],
     {"olt_name": "OLT-P", "ifindex": 700004097, "if_name": "pon1:1",
@@ -1679,14 +1694,25 @@ db_mod.upsert(
      "match_method": "pon"},
 )
 pon_rows = webapp.list_onus(None, olt="OLT-P")
-check("the ONU list carries the PON-level user count and MikroTik iface",
+check("a PON-level subscriber is not repeated on every ONU row",
       len(pon_rows) == 1
-      and pon_rows[0].get("pon_user_count") == 1
-      and pon_rows[0].get("pon_iface") == "Rony_Cable_1380"
-      and pon_rows[0].get("pon_user_names") == ["pon-level-target"]
-      and not pon_rows[0].get("linked_user"))
-check("the 'has PPPoE' filter also matches PON-level links",
-      len(webapp.list_onus(None, olt="OLT-P", status="pppoe")) == 1)
+      and not pon_rows[0].get("linked_user")
+      and not pon_rows[0].get("pon_user_count")
+      and not pon_rows[0].get("pon_iface"))
+check("the 'has PPPoE' filter ignores PON-only links",
+      len(webapp.list_onus(None, olt="OLT-P", status="pppoe")) == 0)
+db_mod.upsert(
+    None, "pppoe_user_current", ["router_name", "name"],
+    {"router_name": "RTR-A", "name": "exact-target", "address": "10.9.8.9",
+     "caller_id": "00:00:0C:AA:BB:CE", "onu_olt_name": "OLT-P", "onu_pon": 1,
+     "onu_ifindex": 700004097, "access_iface": "Rony_Cable_1381",
+     "match_method": "mac"},
+)
+exact_rows = webapp.list_onus(None, olt="OLT-P", status="pppoe")
+check("the 'has PPPoE' filter matches an exact ONU link",
+      len(exact_rows) == 1
+      and exact_rows[0].get("linked_user") == "exact-target"
+      and exact_rows[0].get("linked_iface") == "Rony_Cable_1381")
 
 # ---- a synthetic PON row on a GPON OLT must not be labelled EPON ----------
 db_mod.upsert(

@@ -504,7 +504,7 @@ def dashboard_data(db_path: str | Path, cfg: dict) -> dict[str, Any]:
         db_path,
         """
         SELECT COUNT(*) AS online,
-               SUM(CASE WHEN onu_ifindex IS NOT NULL OR onu_pon IS NOT NULL
+               SUM(CASE WHEN onu_ifindex IS NOT NULL
                         THEN 1 ELSE 0 END) AS matched,
                SUM(CASE WHEN rx_power_dbm IS NOT NULL AND rx_power_dbm <= ? THEN 1 ELSE 0 END) AS weak,
                SUM(COALESCE(bytes_in,0) + COALESCE(bytes_out,0))        AS traffic_bytes
@@ -592,16 +592,13 @@ def _onu_filters(
         where += " AND oper_status = 1 AND rx_power_dbm IS NOT NULL AND rx_power_dbm < ?"
         params.append(float(weak_dbm))
     elif status == "pppoe":
-        # Exact links (MAC/name) plus the PON-level links some firmware only
-        # exposes.  Without the second half the "has PPPoE" filter is empty on
-        # PHOTON / BDPON / BTPON even though subscribers are linked to the PON.
+        # Only subscribers that are pinned to this exact ONU.  A PON-level
+        # fallback would mark every ONU on the PON as "has PPPoE" even though
+        # the firmware cannot say which ONU the user is behind.
         where += (
-            " AND (ifindex IN (SELECT onu_ifindex FROM pppoe_user_current"
+            " AND ifindex IN (SELECT onu_ifindex FROM pppoe_user_current"
             "                   WHERE onu_olt_name = olt_onu_current.olt_name"
             "                     AND onu_ifindex IS NOT NULL)"
-            "      OR pon IN (SELECT onu_pon FROM pppoe_user_current"
-            "                  WHERE onu_olt_name = olt_onu_current.olt_name"
-            "                    AND onu_ifindex IS NULL AND onu_pon IS NOT NULL))"
         )
     if only_power:
         where += " AND rx_power_dbm IS NOT NULL"
@@ -638,12 +635,8 @@ def list_onus(
 
     # ``linked_user`` is the authoritative PPPoE name (a join), because the
     # denormalised column is empty for a few seconds between an OLT poll and the
-    # next correlation pass.
-    #
-    # Firmware such as PHOTON / BDPON / BTPON only names the PON in its
-    # forwarding table, so those subscribers cannot be pinned to one ONU.  They
-    # are aggregated per PON here and shown on every ONU of that PON, which is
-    # far more useful than the "-" the page used to print.
+    # next correlation pass.  Only exact ONU links are shown here: a PON-level
+    # match belongs on the PON page, not repeated on every ONU of that PON.
     where, params = _onu_filters(olt, pon, status, search, only_power, weak_dbm)
     sql = (
         "SELECT olt_onu_current.*,"
@@ -654,56 +647,13 @@ def list_onus(
         "       (SELECT u.access_iface FROM pppoe_user_current u"
         "           WHERE u.onu_olt_name = olt_onu_current.olt_name"
         "             AND u.onu_ifindex = olt_onu_current.ifindex"
-        "           ORDER BY u.name LIMIT 1) AS linked_iface,"
-        "       ponl.users AS pon_user_count,"
-        "       ponl.iface AS pon_iface"
+        "           ORDER BY u.name LIMIT 1) AS linked_iface"
         "  FROM olt_onu_current"
-        "  LEFT JOIN ("
-        "      SELECT onu_olt_name, onu_pon, COUNT(*) AS users,"
-        "             GROUP_CONCAT(DISTINCT access_iface ORDER BY access_iface"
-        "                          SEPARATOR ', ') AS iface"
-        "        FROM pppoe_user_current"
-        "       WHERE onu_ifindex IS NULL AND onu_pon IS NOT NULL"
-        "       GROUP BY onu_olt_name, onu_pon"
-        "  ) ponl ON ponl.onu_olt_name = olt_onu_current.olt_name"
-        "        AND ponl.onu_pon = olt_onu_current.pon"
         + where
     )
     sql += f" ORDER BY olt_name, {sort} {direction} LIMIT ? OFFSET ?"
     params.extend([int(limit), max(0, int(offset))])
-    rows = query(db_path, sql, params)
-
-    # The PON-level rows only carry a count.  Attach the first names of each
-    # PON so the ONU list shows *who* is behind it, not just "53 users" - the
-    # firmware cannot say which ONU, but the names are still useful on the row.
-    groups = {
-        (str(r.get("olt_name")), int(r.get("pon") or 0))
-        for r in rows
-        if r.get("pon_user_count")
-    }
-    if groups:
-        by_pon: dict[tuple[str, int], list[str]] = {}
-        for user in query(
-            db_path,
-            "SELECT onu_olt_name, onu_pon, name FROM pppoe_user_current"
-            " WHERE onu_ifindex IS NULL AND onu_pon IS NOT NULL"
-            " ORDER BY name",
-        ):
-            try:
-                key = (str(user["onu_olt_name"]), int(user["onu_pon"]))
-            except (TypeError, ValueError):
-                continue
-            if key in groups:
-                by_pon.setdefault(key, []).append(str(user["name"]))
-        for row in rows:
-            try:
-                key = (str(row.get("olt_name")), int(row.get("pon") or 0))
-            except (TypeError, ValueError):
-                key = ("", 0)
-            listed = by_pon.get(key) or []
-            row["pon_user_names"] = listed[:2]
-            row["pon_user_more"] = max(0, len(listed) - 2)
-    return rows
+    return query(db_path, sql, params)
 
 
 def onu_summary(
@@ -954,10 +904,6 @@ def quick_search(
         onu["mac_vendor"] = oui_mod.vendor_for(
             onu.get("mac"), None, onu.get("vendor"), onu.get("model")
         )
-        if onu.get("pon") is not None:
-            onu["pon_users"] = users_on_pon(
-                db_path, str(onu.get("olt_name")), int(onu["pon"])
-            )
     for port in ports:
         port["pon_users"] = users_on_pon(
             db_path, str(port.get("olt_name")), int(port.get("pon") or 0)
@@ -1906,7 +1852,6 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"no ONU ifindex={ifindex} on {olt}")
         pon = onu.get("pon")
         pon_info = find_pon(db_path, cfg, olt, int(pon)) if pon is not None else None
-        pon_users = users_on_pon(db_path, olt, int(pon)) if pon is not None else []
         return render(
             request,
             "onu_detail.html",
@@ -1919,9 +1864,6 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
                     onu.get("mac"), None, onu.get("vendor"), onu.get("model")
                 ),
                 "users": users_on_onu(db_path, olt, ifindex),
-                "pon_users": [
-                    row for row in pon_users if row.get("onu_ifindex") is None
-                ],
                 "optical_configured": _optical_configured(db_path, cfg),
             },
         )
@@ -1955,7 +1897,6 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             search=q or None, only_power=power_on, sort=sort, direction=dir,
             weak_dbm=weak_dbm, limit=per_page, offset=(page - 1) * per_page,
         )
-        summary["pon_level"] = 0
         summary["first_row"] = (page - 1) * per_page + 1 if rows else 0
         summary["last_row"] = (page - 1) * per_page + len(rows)
         summary["page"] = page
@@ -1965,26 +1906,6 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             key: value for key, value in request.query_params.items()
             if key not in ("page", "sort", "dir") and value
         }
-        # Subscribers the OLT only associates with a PON.  Counted separately
-        # (not summed over the ONU rows, which would multiply them by the number
-        # of ONUs sharing that PON).
-        where = ["onu_ifindex IS NULL", "onu_pon IS NOT NULL"]
-        params: list[Any] = []
-        if olt:
-            where.append("onu_olt_name = ?")
-            params.append(olt)
-        if pon_number is not None:
-            where.append("onu_pon = ?")
-            params.append(pon_number)
-        summary["pon_level"] = int(
-            query(
-                db_path,
-                "SELECT COUNT(*) AS n FROM pppoe_user_current WHERE "
-                + " AND ".join(where),
-                params,
-            )[0]["n"]
-            or 0
-        )
         return render(
             request,
             "onus.html",
