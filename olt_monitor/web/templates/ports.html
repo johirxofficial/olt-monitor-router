@@ -2,17 +2,24 @@
 {% block title %}Ports - {{ app_title }}{% endblock %}
 {% block content %}
 
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Ports</h1>
+    <p class="page-sub">Uplinks, PON ports and optics across every OLT and router</p>
+  </div>
+</div>
+
 <div class="row g-3 mb-3">
   <div class="col-md-3">
     <div class="card stat-card"><div class="card-body">
       <div class="text-secondary small">Uplinks up</div>
-      <div class="stat-value">{{ data.ports.uplinks_up or 0 }}<span class="text-secondary fs-6">/{{ data.ports.uplinks_total or 0 }}</span></div>
+      <div class="stat-value">{{ data.ports.uplinks_up or 0 }}<span class="unit">/ {{ data.ports.uplinks_total or 0 }}</span></div>
     </div></div>
   </div>
   <div class="col-md-3">
     <div class="card stat-card"><div class="card-body">
       <div class="text-secondary small">PON ports up</div>
-      <div class="stat-value">{{ data.ports.pons_up or 0 }}<span class="text-secondary fs-6">/{{ data.ports.pons_total or 0 }}</span></div>
+      <div class="stat-value">{{ data.ports.pons_up or 0 }}<span class="unit">/ {{ data.ports.pons_total or 0 }}</span></div>
     </div></div>
   </div>
   <div class="col-md-6">
@@ -42,7 +49,7 @@
 
 <h6 class="mt-4"><i class="bi bi-ethernet"></i> Uplink ports</h6>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
       <th>Port</th><th>Kind</th><th>State</th><th class="text-end">In</th><th class="text-end">Out</th>
@@ -72,7 +79,7 @@
 {% if olt_sfp %}
 <h6 class="mt-4"><i class="bi bi-lightning-charge"></i> OLT uplink optics</h6>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
       <th>Port</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th>
@@ -97,7 +104,7 @@
 
 <h6 class="mt-4"><i class="bi bi-diagram-3"></i> PON ports</h6>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
       <th>Port</th><th>State</th><th class="text-end">ONUs</th><th class="text-end">Up</th><th class="text-end">Down</th>
@@ -128,7 +135,7 @@
 
 <h6 class="mt-4"><i class="bi bi-link-45deg"></i> Other interfaces</h6>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>{% if olt_names | length > 1 %}<th>OLT</th>{% endif %}
       <th>Interface</th><th>Kind</th><th>State</th><th class="text-end">In</th><th class="text-end">Out</th></tr>
@@ -154,7 +161,7 @@
 {% if uplink_ifaces %}
 <h6 class="mt-4"><i class="bi bi-router"></i> Router SFP optics</h6>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr><th>Router</th><th>Interface</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th><th class="text-end">Temp</th>
       <th class="text-end">In</th><th class="text-end">Out</th></tr>

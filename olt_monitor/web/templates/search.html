@@ -9,11 +9,14 @@
   </ol>
 </nav>
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h5 class="mb-0">
-    <i class="bi bi-search"></i> Results for <span class="text-primary">{{ q }}</span>
-    {% if result.mac %}<span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">{{ result.mac }}</span>{% endif %}
-  </h5>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Results for <span class="mono">{{ q }}</span></h1>
+    <p class="page-sub">Every match in users, ONUs, PONs and devices</p>
+  </div>
+  <div class="page-actions">
+    {% if result.mac %}<span class="badge bg-secondary">{{ result.mac }}</span>{% endif %}
+  </div>
   <form class="d-flex" method="get" action="/search">
     <input class="form-control form-control-sm" type="search" name="q" value="{{ q }}" required style="width: 18rem" aria-label="Search again">
     <button class="btn btn-sm btn-outline-secondary ms-1">Search</button>
@@ -36,7 +39,7 @@
     <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ result.users | length }}</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr>
           <th>User</th><th>Router</th><th>IP</th><th>Router / ONU MAC</th><th>Vendor</th>
@@ -100,7 +103,7 @@
     <span class="badge bg-secondary-subtle text-secondary-emphasis">{{ result.onus | length }}</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr>
           <th>ONU</th><th>OLT / PON</th><th>MAC</th><th>Vendor</th><th>Model / serial</th>
@@ -151,7 +154,7 @@
 <div class="card mb-4">
   <div class="card-header py-2"><strong><i class="bi bi-diagram-3"></i> PON ports</strong></div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr><th>OLT / port</th><th>State</th><th class="text-end">SFP Rx / Tx</th><th>Users linked at PON level</th><th></th></tr>
       </thead>

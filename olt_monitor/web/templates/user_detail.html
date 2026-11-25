@@ -10,15 +10,19 @@
   </ol>
 </nav>
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-person-badge"></i> {{ user.name }}
-    <span class="text-secondary fs-6">{{ user.service or 'pppoe' }} &middot; {{ user.router_name }}</span>
-    {% if user.match_method == 'pon' %}<span class="badge bg-info-subtle text-info-emphasis">linked: PON {{ user.onu_pon }}</span>
-    {% elif user.match_method %}<span class="badge bg-success-subtle text-success-emphasis">linked: {{ user.match_method }}</span>
-    {% else %}<span class="badge bg-warning text-dark">not linked to an ONU</span>{% endif %}
-  </h5>
-  <a class="btn btn-sm btn-outline-secondary" href="/users?q={{ user.name }}">Find in user list</a>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">
+      {{ user.name }}
+      {% if user.match_method == 'pon' %}<span class="badge bg-info">linked: PON {{ user.onu_pon }}</span>
+      {% elif user.match_method %}<span class="badge bg-success">linked: {{ user.match_method }}</span>
+      {% else %}<span class="badge bg-warning">not linked to an ONU</span>{% endif %}
+    </h1>
+    <p class="page-sub">{{ user.service or 'pppoe' }} &middot; {{ user.router_name }}</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-sm btn-outline-secondary" href="/users?q={{ user.name }}">Find in user list</a>
+  </div>
 </div>
 
 <div class="row g-3 mb-3">

@@ -17,126 +17,151 @@
       } catch (e) { /* private mode */ }
     })();
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="/static/css/style.css?v={{ version }}" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body data-refresh="{{ refresh_seconds }}">
-<nav class="navbar navbar-expand-xxl app-navbar sticky-top mb-4">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="/">
-      <span class="brand-mark"><i class="bi bi-broadcast-pin"></i></span>
-      <span>{{ app_title }}</span>
-      {% if tagline %}<span class="d-none d-xxl-inline small fw-normal ms-2" style="color: var(--olt-muted)">{{ tagline }}</span>{% endif %}
-    </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="nav">
-      <ul class="navbar-nav me-auto gap-1">
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='dashboard' }}" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='olts' }}" href="/olts"><i class="bi bi-hdd-rack"></i> OLTs</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='pons' }}" href="/pons"><i class="bi bi-diagram-3"></i> PONs</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='onus' }}" href="/onus"><i class="bi bi-hdd-network"></i> ONUs</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='users' }}" href="/users"><i class="bi bi-people"></i> Users</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='routers' }}" href="/routers"><i class="bi bi-router"></i> Routers</a></li>
-        <li class="nav-item"><a class="nav-link {{ 'active' if active=='alerts' }}" href="/alerts"><i class="bi bi-exclamation-triangle"></i> Alerts</a></li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle {{ 'active' if active in ('ports','devices','tools','about') }}" href="#" data-bs-toggle="dropdown" role="button">
-            <i class="bi bi-grid-3x3-gap"></i> More
-          </a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item {{ 'active' if active=='ports' }}" href="/ports"><i class="bi bi-ethernet"></i> Ports</a></li>
-            {% if can_manage %}
-            <li><a class="dropdown-item {{ 'active' if active=='devices' }}" href="/devices"><i class="bi bi-hdd-stack"></i> Devices</a></li>
-            {% endif %}
-            {% if permissions.perm_tools %}
-            <li><a class="dropdown-item {{ 'active' if active=='tools' }}" href="/tools"><i class="bi bi-terminal"></i> SNMP Tools</a></li>
-            {% endif %}
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item {{ 'active' if active=='about' }}" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
-          </ul>
-        </li>
-      </ul>
+<a class="skip-link" href="#main">Skip to content</a>
 
-      <ul class="navbar-nav align-items-xxl-center gap-1">
+<div class="app-shell">
+  <aside class="app-sidebar" id="app-sidebar" aria-label="Main navigation">
+    <div class="sidebar-head">
+      <a class="sidebar-brand" href="/">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="brand-text">
+          <strong>{{ app_title }}</strong>
+          {% if tagline %}<small>{{ tagline }}</small>{% endif %}
+        </span>
+      </a>
+      <button class="icon-btn rail-toggle" type="button" data-sidebar-close aria-label="Close navigation">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav">
+      <p class="nav-label">Monitor</p>
+      <a class="nav-row {{ 'active' if active=='dashboard' }}" href="/"><i class="bi bi-speedometer2"></i> Dashboard</a>
+      <a class="nav-row {{ 'active' if active=='olts' }}" href="/olts"><i class="bi bi-hdd-rack"></i> OLTs</a>
+      <a class="nav-row {{ 'active' if active=='pons' }}" href="/pons"><i class="bi bi-diagram-3"></i> PONs</a>
+      <a class="nav-row {{ 'active' if active=='onus' }}" href="/onus"><i class="bi bi-hdd-network"></i> ONUs</a>
+      <a class="nav-row {{ 'active' if active=='users' }}" href="/users"><i class="bi bi-people"></i> Users</a>
+      <a class="nav-row {{ 'active' if active=='routers' }}" href="/routers"><i class="bi bi-router"></i> Routers</a>
+
+      <p class="nav-label">Operations</p>
+      <a class="nav-row {{ 'active' if active=='alerts' }}" href="/alerts"><i class="bi bi-exclamation-triangle"></i> Alerts</a>
+      <a class="nav-row {{ 'active' if active=='ports' }}" href="/ports"><i class="bi bi-ethernet"></i> Ports</a>
+
+      <p class="nav-label">System</p>
+      {% if can_manage %}
+      <a class="nav-row {{ 'active' if active=='devices' }}" href="/devices"><i class="bi bi-hdd-stack"></i> Devices</a>
+      {% endif %}
+      {% if permissions.perm_tools %}
+      <a class="nav-row {{ 'active' if active=='tools' }}" href="/tools"><i class="bi bi-terminal"></i> SNMP tools</a>
+      {% endif %}
+      {% if permissions.perm_settings %}
+      <a class="nav-row {{ 'active' if active=='settings' }}" href="/settings"><i class="bi bi-gear"></i> Settings</a>
+      {% endif %}
+      {% if permissions.perm_users %}
+      <a class="nav-row {{ 'active' if active=='admin-users' }}" href="/admin/users"><i class="bi bi-shield-lock"></i> Web users</a>
+      {% endif %}
+      {% if permissions.perm_developer %}
+      <a class="nav-row {{ 'active' if active=='developer' }}" href="/developer"><i class="bi bi-code-slash"></i> Developer</a>
+      {% endif %}
+      <a class="nav-row {{ 'active' if active=='about' }}" href="/about"><i class="bi bi-info-circle"></i> About</a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <span class="lamp is-up" role="img" aria-label="Live"><i></i><i></i><i></i></span>
+      <span>Auto-refresh {{ refresh_seconds }}s</span>
+      <span class="version">v{{ version }}</span>
+    </div>
+  </aside>
+
+  <div class="sidebar-scrim" data-sidebar-close></div>
+
+  <div class="app-column">
+    <header class="app-topbar">
+      <button class="icon-btn rail-toggle" type="button" data-sidebar-open aria-label="Open navigation">
+        <i class="bi bi-list"></i>
+      </button>
+      <a class="topbar-brand" href="/">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        <span class="brand-text"><strong>{{ app_title }}</strong></span>
+      </a>
+
+      {% if user %}
+      <form class="topbar-search" method="get" action="/search" role="search">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input type="search" name="q" value="{{ q or '' }}" required
+               placeholder="User, IP, MAC, ONU or serial"
+               aria-label="Search a user, IP, MAC, ONU or serial">
+      </form>
+      {% endif %}
+
+      <div class="topbar-actions">
+        <span class="topbar-clock" id="clock" aria-hidden="true"></span>
+        <button class="icon-btn" id="theme-toggle" type="button" title="Switch to dark mode" aria-label="Switch colour theme">
+          <i class="bi bi-moon-stars" id="theme-icon"></i>
+        </button>
+
         {% if user %}
-        <li class="nav-item me-xxl-1">
-          <form class="d-flex" method="get" action="/search" role="search">
-            <input class="form-control form-control-sm search-box"
-                   type="search" name="q" value="{{ q or '' }}" required
-                   placeholder="User, MAC, IP, ONU…"
-                   aria-label="Quick search">
-            <button class="btn btn-sm btn-icon ms-1" title="Quick search">
-              <i class="bi bi-search"></i>
-            </button>
-          </form>
-        </li>
-        {% endif %}
-        <li class="nav-item d-flex align-items-center">
-          <button class="btn-icon" id="theme-toggle" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
-            <i class="bi bi-moon-stars" id="theme-icon"></i>
-          </button>
-        </li>
-        {% if user %}
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" role="button">
-            <i class="bi bi-person-circle"></i> {{ user.display_name or user.username }}
+        <div class="dropdown">
+          <a class="user-chip" href="#" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+            <span class="initial">{{ (user.display_name or user.username)[0] }}</span>
+            <span class="name">{{ user.display_name or user.username }}</span>
+            <i class="bi bi-chevron-down" style="font-size:.65rem"></i>
           </a>
           <ul class="dropdown-menu dropdown-menu-end">
-            <li><span class="dropdown-item-text small" style="color: var(--olt-muted)">{{ user.username }} &middot; {{ user.role_label }}</span></li>
+            <li><span class="dropdown-item-text">{{ user.username }} &middot; {{ user.role_label }}</span></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item {{ 'active' if active=='account' }}" href="/account"><i class="bi bi-person-gear"></i> Account</a></li>
-            {% if permissions.perm_settings or permissions.perm_users or permissions.perm_developer %}
-            <li><hr class="dropdown-divider"></li>
             {% if permissions.perm_settings %}
             <li><a class="dropdown-item {{ 'active' if active=='settings' }}" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
             {% endif %}
             {% if permissions.perm_users %}
-            <li><a class="dropdown-item {{ 'active' if active=='admin-users' }}" href="/admin/users"><i class="bi bi-people"></i> Web users</a></li>
+            <li><a class="dropdown-item {{ 'active' if active=='admin-users' }}" href="/admin/users"><i class="bi bi-shield-lock"></i> Web users</a></li>
             {% endif %}
             {% if permissions.perm_developer %}
             <li><a class="dropdown-item {{ 'active' if active=='developer' }}" href="/developer"><i class="bi bi-code-slash"></i> Developer</a></li>
             {% endif %}
-            {% endif %}
             <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
             <li>
               <form method="post" action="/logout" class="px-2 py-1">
                 <button class="btn btn-sm btn-outline-danger w-100"><i class="bi bi-box-arrow-right"></i> Log out</button>
               </form>
             </li>
           </ul>
-        </li>
+        </div>
         {% endif %}
-        <li class="nav-item d-none d-xxl-flex align-items-center nav-clock">
-          <span class="navbar-text small ms-2" id="clock" style="color: var(--olt-muted)"></span>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
+      </div>
+    </header>
 
-<main class="app-main container-fluid px-4">
-  {% block content %}{% endblock %}
-</main>
+    <main class="app-main" id="main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+      <span>
+        {{ site.footer_text or app_title }} &middot; v{{ version }}
+        {% if user %} &middot; signed in as <strong>{{ user.username }}</strong>{% endif %}
+      </span>
+      <span>
+        <a href="/about">About</a>
+        {% if site.support_email %} &middot; <a href="mailto:{{ site.support_email }}">{{ site.support_email }}</a>{% endif %}
+        &middot; polls every {{ refresh_seconds }}s
+      </span>
+    </footer>
+  </div>
+</div>
 
 {# Modals are rendered as direct children of <body>. Bootstrap expects this,
-   and it keeps them out of any <main> stacking context. #}
+   and it keeps them out of any stacking context. #}
 {% block modals %}{% endblock %}
-
-<footer class="app-footer container-fluid d-flex flex-wrap justify-content-between gap-2">
-  <span>
-    {{ site.footer_text or app_title }} &middot; v{{ version }}
-    {% if user %} &middot; signed in as <strong>{{ user.username }}</strong>{% endif %}
-  </span>
-  <span>
-    <a href="/about">About</a>
-    {% if site.support_email %} &middot; <a href="mailto:{{ site.support_email }}">{{ site.support_email }}</a>{% endif %}
-    &middot; auto-refresh every {{ refresh_seconds }}s
-  </span>
-</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="/static/js/app.js?v={{ version }}"></script>

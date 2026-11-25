@@ -6,8 +6,8 @@
   <div class="col-lg-9 col-xl-8">
 
     <div class="text-center mb-4">
-      <div class="display-6 text-primary"><i class="bi bi-magic"></i></div>
-      <h4 class="mb-1">Welcome &mdash; let's set up your monitor</h4>
+      <span class="brand-mark mb-2" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <h1 class="page-title mb-1">Set up your monitor</h1>
       <p class="text-secondary small mb-0">
         This page appears once. It creates the first <strong>super admin</strong>, stores the site
         settings and, if you want, points the app at a remote MySQL server.
@@ -19,8 +19,8 @@
     {% endif %}
 
     <form method="post" action="/setup" autocomplete="off">
-      <div class="card mb-3 shadow-sm">
-        <div class="card-header"><i class="bi bi-globe2"></i> Site</div>
+      <div class="card mb-3">
+        <div class="card-header"><span>Site</span></div>
         <div class="card-body row g-3">
           <div class="col-md-6">
             <label class="form-label small" for="site_name">Site name *</label>
@@ -47,8 +47,8 @@
         </div>
       </div>
 
-      <div class="card mb-3 shadow-sm">
-        <div class="card-header"><i class="bi bi-person-badge"></i> Super admin account</div>
+      <div class="card mb-3">
+        <div class="card-header"><span>Super admin account</span></div>
         <div class="card-body row g-3">
           <div class="col-md-4">
             <label class="form-label small" for="admin_user">Username *</label>
@@ -70,9 +70,9 @@
         </div>
       </div>
 
-      <div class="card mb-3 shadow-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-database"></i> MySQL database</span>
+      <div class="card mb-3">
+        <div class="card-header">
+          <span>MySQL database</span>
           <span class="badge bg-secondary-subtle text-secondary-emphasis">optional</span>
         </div>
         <div class="card-body">

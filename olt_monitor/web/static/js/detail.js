@@ -13,6 +13,14 @@
     return;
   }
 
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+
+  function token(name) {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
+  }
+
   fetch("/api/trend/onu/" + encodeURIComponent(ifindex) + "?olt=" + encodeURIComponent(olt) + "&hours=24")
     .then(function (r) { return r.json(); })
     .then(function (rows) {
@@ -38,8 +46,17 @@
 
       var labels = rows.map(function (row) {
         return String(row.ts || "").replace("T", " ").slice(5, 16);
-      });      var rx = rows.map(function (row) { return row.rx_power_dbm; });
+      });
+      var rx = rows.map(function (row) { return row.rx_power_dbm; });
       var tx = rows.map(function (row) { return row.tx_power_dbm; });
+
+      var info = token("--info");
+      var ok = token("--ok");
+      var muted = token("--muted");
+      var text = token("--text-2");
+      var grid = document.documentElement.getAttribute("data-bs-theme") === "dark"
+        ? "rgba(233,236,239,0.08)"
+        : "rgba(18,26,34,0.08)";
 
       new Chart(canvas.getContext("2d"), {
         type: "line",
@@ -49,8 +66,8 @@
             {
               label: "Rx dBm",
               data: rx,
-              borderColor: "#0d6efd",
-              backgroundColor: "rgba(13,110,253,0.08)",
+              borderColor: info,
+              backgroundColor: "transparent",
               borderWidth: 2,
               pointRadius: 0,
               tension: 0.25,
@@ -59,8 +76,8 @@
             {
               label: "Tx dBm",
               data: tx,
-              borderColor: "#198754",
-              backgroundColor: "rgba(25,135,84,0.08)",
+              borderColor: ok,
+              backgroundColor: "transparent",
               borderWidth: 2,
               pointRadius: 0,
               tension: 0.25,
@@ -74,10 +91,22 @@
           animation: false,
           interaction: { mode: "index", intersect: false },
           scales: {
-            y: { title: { display: true, text: "dBm" }, ticks: { maxTicksLimit: 6 } },
-            x: { ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true } }
+            y: {
+              title: { display: true, text: "dBm", color: muted },
+              ticks: { maxTicksLimit: 6, color: muted },
+              grid: { color: grid, drawBorder: false }
+            },
+            x: {
+              ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true, color: muted },
+              grid: { display: false }
+            }
           },
-          plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } }
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { boxWidth: 12, color: text }
+            }
+          }
         }
       });
     })

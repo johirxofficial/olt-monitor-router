@@ -11,47 +11,49 @@
 {% set tot_down_bps = rows | map(attribute='onu_out_bps') | reject('none') | sum %}
 {% set tot_up_bps = rows | map(attribute='onu_in_bps') | reject('none') | sum %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-diagram-3"></i> PON ports
-    <span class="text-secondary fs-6">
+<div class="page-head">
+  <div>
+    <h1 class="page-title">PON ports</h1>
+    <p class="page-sub">
       {{ active_ports }} of {{ rows | length }} up
       {% if olt %} &middot; {{ olt }}{% endif %}
-    </span>
-  </h5>
+    </p>
+  </div>
   {% if not optical_configured %}
-    <a class="badge bg-warning text-dark text-decoration-none" href="/settings">
-      <i class="bi bi-info-circle"></i> dBm needs optical OIDs - click for setup
+  <div class="page-actions">
+    <a class="btn btn-sm btn-outline-warning" href="/settings">
+      <i class="bi bi-info-circle"></i> dBm needs optical OIDs
     </a>
+  </div>
   {% endif %}
 </div>
 
 <div class="row g-2 mb-3">
-  <div class="col-6 col-md-3 col-xl">
+  <div class="col-6 col-md">
     <div class="summary-tile ok">
       <div class="n">{{ active_ports }}/{{ rows | length }}</div>
       <div class="t">PON ports up</div>
     </div>
   </div>
-  <div class="col-6 col-md-3 col-xl">
+  <div class="col-6 col-md">
     <div class="summary-tile ok">
       <div class="n">{{ up_onus }}/{{ tot_onus }}</div>
       <div class="t">ONU online / registered</div>
     </div>
   </div>
-  <div class="col-6 col-md-3 col-xl">
+  <div class="col-6 col-md">
     <div class="summary-tile info">
       <div class="n">{{ tot_users }}</div>
       <div class="t">PPPoE subscribers</div>
     </div>
   </div>
-  <div class="col-6 col-md-3 col-xl">
+  <div class="col-6 col-md">
     <div class="summary-tile">
       <div class="n">{{ tot_down_bps | bps }}</div>
       <div class="t">Download (ONU sum)</div>
     </div>
   </div>
-  <div class="col-6 col-md-3 col-xl">
+  <div class="col-6 col-md">
     <div class="summary-tile">
       <div class="n">{{ tot_up_bps | bps }}</div>
       <div class="t">Upload (ONU sum)</div>
@@ -76,7 +78,7 @@
 {% endif %}
 
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>
         {% if olt_names | length > 1 %}<th>OLT</th>{% endif %}

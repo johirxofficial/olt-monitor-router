@@ -10,14 +10,17 @@
   </ol>
 </nav>
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-diagram-3"></i> {{ olt }} &middot; {{ detail.if_name }}
-    {% if detail.oper_status is not none %}
-      <span class="badge state-{{ detail.oper_status | state }}">{{ detail.oper_status | state }}</span>
-    {% endif %}
-  </h5>
-  <div class="d-flex gap-2">
+<div class="page-head">
+  <div>
+    <h1 class="page-title">
+      {{ olt }} &middot; {{ detail.if_name }}
+      {% if detail.oper_status is not none %}
+        <span class="badge state-{{ detail.oper_status | state }}">{{ detail.oper_status | state }}</span>
+      {% endif %}
+    </h1>
+    <p class="page-sub">{{ detail.onus }} ONUs registered &middot; {{ detail.users }} linked subscribers</p>
+  </div>
+  <div class="page-actions">
     <a class="btn btn-sm btn-outline-secondary" href="/onus?olt={{ olt }}&pon={{ pon }}">Open in ONU list</a>
     <a class="btn btn-sm btn-outline-secondary" href="/users?q={{ olt }}">Users</a>
   </div>
@@ -27,7 +30,7 @@
   <div class="col-6 col-md-3 col-xl">
     <div class="card stat-card h-100"><div class="card-body py-2">
       <div class="text-secondary small">ONUs online / registered</div>
-      <div class="stat-value">{{ detail.up }}<span class="text-secondary fs-6">/{{ detail.onus }}</span></div>
+      <div class="stat-value">{{ detail.up }}<span class="unit">/ {{ detail.onus }}</span></div>
       <div class="capacity mt-1">
         <div class="bar">
           <div class="up" style="width: {{ detail.up_pct if detail.up_pct is not none else 0 }}%"></div>
@@ -62,7 +65,7 @@
       <div class="text-secondary small">SFP TX / RX</div>
       <div class="stat-value">
         {{ detail.sfp_tx_power_dbm | dbm }}
-        <span class="text-secondary fs-6">/</span>
+        <span class="unit">/</span>
         <span class="{{ 'power-weak' if detail.sfp_rx_power_dbm is not none and detail.sfp_rx_power_dbm <= -27 }}">{{ detail.sfp_rx_power_dbm | dbm }}</span>
       </div>
       <div class="small text-secondary">module {{ (detail.sfp_temperature_c | round(1)) ~ ' °C' if detail.sfp_temperature_c is not none else '-' }}</div>
@@ -82,7 +85,7 @@
   </div>
 </div>
 
-<h6 class="mt-4"><i class="bi bi-hdd-network"></i> ONUs on this PON <span class="text-secondary small">({{ onus | length }})</span></h6>
+<h2 class="h6 text-secondary mt-4 mb-2">ONUs on this PON <span class="mono">({{ onus | length }})</span></h2>
 <div class="table-responsive">
   <table class="table table-sm table-hover table-striped align-middle">
     <thead class="table-light">

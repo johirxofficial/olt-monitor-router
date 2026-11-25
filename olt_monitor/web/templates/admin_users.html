@@ -2,8 +2,12 @@
 {% block title %}Web users - {{ app_title }}{% endblock %}
 {% block content %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h5 class="mb-0"><i class="bi bi-person-gear"></i> Web users <span class="text-secondary fs-6">({{ users | length }})</span></h5>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Web users</h1>
+    <p class="page-sub">{{ users | length }} accounts with access to this monitor</p>
+  </div>
+  <div class="page-actions">
   <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#user-create">
     <i class="bi bi-plus-lg"></i> New user
   </button>
@@ -23,7 +27,7 @@
 
 <div class="card mb-4">
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr>
           <th>User</th><th>Role</th><th>Extra permissions</th><th>Email</th><th>State</th>

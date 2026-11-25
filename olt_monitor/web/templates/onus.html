@@ -11,18 +11,20 @@
 
 {% set base = filter_qs %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-hdd-network"></i> ONUs
-    <span class="text-secondary fs-6">
+<div class="page-head">
+  <div>
+    <h1 class="page-title">ONUs</h1>
+    <p class="page-sub">
       {{ summary.total }} matching{% if summary.pages > 1 %} &middot; showing {{ summary.first_row }}&ndash;{{ summary.last_row }}{% endif %}
       {% if weak_dbm %} &middot; weak rx below {{ weak_dbm }} dBm{% endif %}
-    </span>
-  </h5>
+    </p>
+  </div>
   {% if not optical_configured %}
-    <a class="badge bg-warning text-dark text-decoration-none" href="/settings">
-      <i class="bi bi-info-circle"></i> optical OIDs not configured - click for setup
+  <div class="page-actions">
+    <a class="btn btn-sm btn-outline-warning" href="/settings">
+      <i class="bi bi-info-circle"></i> Optical OIDs not configured
     </a>
+  </div>
   {% endif %}
 </div>
 
@@ -35,19 +37,19 @@
   </div>
   <div class="col-6 col-md-2">
     <div class="summary-tile ok">
-      <div class="n text-success">{{ summary.up }}</div>
+      <div class="n">{{ summary.up }}</div>
       <div class="t">Online</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="summary-tile bad">
-      <div class="n text-danger">{{ summary.down }}</div>
+      <div class="n">{{ summary.down }}</div>
       <div class="t">Offline</div>
     </div>
   </div>
   <div class="col-6 col-md-2">
     <div class="summary-tile warn">
-      <div class="n text-warning-emphasis">{{ summary.weak }}</div>
+      <div class="n">{{ summary.weak }}</div>
       <div class="t">Weak Rx</div>
     </div>
   </div>
@@ -59,7 +61,7 @@
   </div>
   <div class="col-6 col-md-2">
     <div class="summary-tile">
-      <div class="n text-secondary">{{ summary.no_power }}</div>
+      <div class="n">{{ summary.no_power }}</div>
       <div class="t">No optical reading</div>
     </div>
   </div>
@@ -112,16 +114,16 @@
 </form>
 
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr>
         <th><a href="?{{ base }}&sort=if_name&dir={{ 'desc' if sort == 'if_name' and dir == 'asc' else 'asc' }}">ONU</a></th>
         {% if olt_names | length > 1 %}<th><a href="?{{ base }}&sort=olt_name&dir=asc">OLT</a></th>{% endif %}
         <th class="text-end"><a href="?{{ base }}&sort=onu_id&dir=asc">PON / ID</a></th>
         <th>State</th>
-        <th class="text-end"><a href="?{{ base }}&sort=rx_power_dbm&dir=asc">Rx dBm</a></th>
-        <th class="text-end">Tx dBm</th>
-        <th class="text-end"><a href="?{{ base }}&sort=distance_m&dir=asc">Distance</a></th>
+        <th class="text-end text-nowrap"><a href="?{{ base }}&sort=rx_power_dbm&dir=asc">Rx dBm</a></th>
+        <th class="text-end text-nowrap">Tx dBm</th>
+        <th class="text-end text-nowrap"><a href="?{{ base }}&sort=distance_m&dir=asc">Distance</a></th>
         <th>Serial / model</th>
         <th>VLAN</th>
         <th>MAC</th>
@@ -148,11 +150,11 @@
           {% else %}-/{{ row.onu_id }}{% endif %}
         </td>
         <td><span class="badge state-{{ row.oper_status | state }}">{{ row.oper_status | state }}</span></td>
-        <td class="text-end {{ 'power-weak' if row.rx_power_dbm is not none and row.rx_power_dbm <= weak_dbm }}">
+        <td class="text-end text-nowrap {{ 'power-weak' if row.rx_power_dbm is not none and row.rx_power_dbm <= weak_dbm }}">
           {{ row.rx_power_dbm | dbm }}
         </td>
-        <td class="text-end">{{ row.tx_power_dbm | dbm }}</td>
-        <td class="text-end">{{ dist(row.distance_m) }}</td>
+        <td class="text-end text-nowrap">{{ row.tx_power_dbm | dbm }}</td>
+        <td class="text-end text-nowrap">{{ dist(row.distance_m) }}</td>
         <td class="small">
           {% if row.serial %}<span class="font-monospace">{{ row.serial }}</span>{% endif %}
           {% if row.model %}<div class="text-secondary">{{ row.model }}</div>{% endif %}
@@ -175,7 +177,7 @@
           {{ (row.voltage_v | round(2)) ~ 'V' if row.voltage_v is not none else '' }}
           {{ (row.bias_current_ma | round(1)) ~ 'mA' if row.bias_current_ma is not none else '' }}
         </td>
-        <td class="small">
+        <td class="small text-nowrap">
           {% if row.last_down_reason or row.last_down_at %}
             {% if row.last_down_reason %}
               <span class="{{ 'text-danger fw-semibold' if row.oper_status == 2 else 'text-secondary' }}">

@@ -2,11 +2,11 @@
 {% block title %}Routers - {{ app_title }}{% endblock %}
 {% block content %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-router"></i> Routers
-    <span class="text-secondary fs-6">({{ routers | length }} configured - manage them on the <a href="/devices">Devices</a> page)</span>
-  </h5>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Routers</h1>
+    <p class="page-sub">{{ routers | length }} configured &middot; manage them on the <a href="/devices">Devices</a> page</p>
+  </div>
 </div>
 
 <div class="row g-3 mb-4">
@@ -31,9 +31,9 @@
               <tr><th>Board</th><td>{{ rt.payload.board_name or '-' }} <span class="text-secondary small">{{ rt.payload.architecture or '' }}</span></td></tr>
               <tr><th>Host / API</th><td><code>{{ rt.host }}:{{ rt.payload.api_port or '' }}</code></td></tr>
               <tr><th>Uptime</th><td>{{ rt.payload.uptime_text or '-' }}</td></tr>
-              <tr><th>CPU</th><td>{{ rt.payload.cpu_load if rt.payload.cpu_load is not none else '-' }}%</td></tr>
-              <tr><th>Memory free</th><td>{{ rt.payload.free_memory_percent if rt.payload.free_memory_percent is not none else '-' }}%</td></tr>
-              <tr><th>PPPoE online</th><td>{{ rt.payload.pppoe_users if rt.payload.pppoe_users is not none else (st.users if st else '-') }}</td></tr>
+              <tr><th>CPU</th><td>{% if rt.payload.cpu_load is not none %}{{ rt.payload.cpu_load }}%{% else %}-{% endif %}</td></tr>
+              <tr><th>Memory free</th><td>{% if rt.payload.free_memory_percent is not none %}{{ rt.payload.free_memory_percent }}%{% else %}-{% endif %}</td></tr>
+              <tr><th>PPPoE online</th><td>{% if rt.payload.pppoe_users not in (none, '') %}{{ rt.payload.pppoe_users }}{% elif st and st.users is not none %}{{ st.users }}{% else %}-{% endif %}</td></tr>
               <tr><th>Last poll</th><td class="small text-secondary">{{ rt.updated_local }}</td></tr>
             {% if rt.error %}<tr><th>Error</th><td class="small text-danger">{{ rt.error }}</td></tr>{% endif %}
             </tbody>
@@ -52,9 +52,9 @@
 
 {% set sfp_ifaces = ifaces | selectattr('sfp_rx_power_dbm','ne', none) | list %}
 {% if sfp_ifaces %}
-<h6><i class="bi bi-lightning-charge"></i> SFP optics (all routers)</h6>
+<h2 class="h6 text-secondary mt-4 mb-2">SFP optics across all routers</h2>
 <div class="table-responsive">
-  <table class="table table-sm table-hover align-middle">
+  <table class="table table-sm table-hover align-middle table-nowrap">
     <thead class="table-light">
       <tr><th>Router</th><th>Interface</th><th class="text-end">Rx dBm</th><th class="text-end">Tx dBm</th>
       <th class="text-end">Temp</th><th class="text-end">In</th><th class="text-end">Out</th></tr>

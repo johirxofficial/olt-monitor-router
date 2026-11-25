@@ -30,7 +30,37 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.7
+## What's new in 3.5.8
+
+**A calmer console: instrument panel, not SaaS**
+
+The whole web UI was rebuilt around one design direction: a night-shift optical
+bench. Matte graphite surfaces, a single amber accent, IBM Plex Sans and Plex
+Mono for figures, and one signature motif - four lit fibre bars in the mark and
+three-bar signal pips for live state.
+
+* **New shell.** A fixed left navigation rail (off-canvas below 1100 px), a
+  quiet sticky topbar with search, clock, theme and account menu, and a compact
+  footer. No gradients, glows, glass cards or coloured shadows.
+* **Dashboard.** A four-figure stat row, one large optical-power histogram
+  (neutral healthy bars, amber near threshold, red below -27 dBm), then PONs,
+  device cards, uplinks and alerts. The chart redraws with the theme.
+* **OLT overview.** A proper health figure (score, label, thin bar) replaces the
+  old donut, with ONU capacity as a single up/down bar and low-level notes
+  moved into quiet inline notices.
+* **Dense tables stay readable.** ONUs, users, PONs, devices and search results
+  use compact rows, tabular figures, sentence-case headers and horizontal
+  scrolling instead of squeezed multi-line cells.
+* **Copy and icons.** Page titles and section labels are sentence case, icons
+  are used for actions rather than decoration, and the public About page now
+  credits the design method.
+* No schema change, no polling change (still every 600 s), and no configuration
+  change is required.
+
+The interface follows the [unslop](https://github.com/heydamir/unslop) method by
+Damir Sokolovsky ([@heydamir](https://x.com/heydamir)), used under CC BY 4.0.
+
+### From 3.5.7
 
 **Per-ONU lists show only that ONU's own subscriber**
 
@@ -1436,6 +1466,11 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.8 rebuilds the interface as an instrument panel** — fixed navigation
+  rail, quiet topbar, IBM Plex type, one amber accent and a single rich optical
+  chart. Health gauges, badges, tables, forms and public pages share the same
+  neutral token system in light and dark mode. Polling, data and features are
+  unchanged; no schema or configuration change.
 * **3.5.7 keeps per-ONU lists honest** — PON-level subscribers are no longer
   repeated on every ONU row, the "has PPPoE" filter matches exact ONU links
   only, the empty per-ONU Traffic column is gone, and CLI-only ONUs keep the

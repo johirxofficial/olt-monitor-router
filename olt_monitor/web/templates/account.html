@@ -5,7 +5,12 @@
 <div class="row justify-content-center">
   <div class="col-lg-8 col-xl-7">
 
-    <h5 class="mb-3"><i class="bi bi-person-gear"></i> My account</h5>
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">My account</h1>
+        <p class="page-sub">Profile, password and session</p>
+      </div>
+    </div>
 
     {% if msg %}<div class="alert alert-success py-2 small">{{ msg }}</div>{% endif %}
     {% if err %}<div class="alert alert-danger py-2 small">{{ err }}</div>{% endif %}
@@ -37,7 +42,7 @@
           </div>
 
           <hr class="my-4">
-          <h6 class="text-uppercase text-secondary small">Change password</h6>
+          <h2 class="h6 text-secondary mb-3">Change password</h2>
           <p class="small text-secondary">Leave these blank to keep your current password.</p>
           <div class="row g-3">
             <div class="col-md-4">

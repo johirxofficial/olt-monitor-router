@@ -2,17 +2,17 @@
 {% block title %}Devices - {{ app_title }}{% endblock %}
 {% block content %}
 
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
-  <h5 class="mb-0">
-    <i class="bi bi-hdd-stack"></i> Devices
-    <span class="text-secondary fs-6">
-      ({{ counts.olt.enabled }}/{{ counts.olt.total }} OLT &middot;
-       {{ counts.router.enabled }}/{{ counts.router.total }} router &middot; saved in the database)
-    </span>
-  </h5>
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Devices</h1>
+    <p class="page-sub">
+      {{ counts.olt.enabled }}/{{ counts.olt.total }} OLT enabled &middot;
+      {{ counts.router.enabled }}/{{ counts.router.total }} router enabled
+    </p>
+  </div>
   {% if can_manage %}
   <div class="d-flex flex-wrap gap-2 align-items-center">
-    <span id="poll-all-status" class="small text-secondary"></span>
+    <span id="poll-all-status" class="mono"></span>
     <button class="btn btn-sm btn-outline-primary" onclick="DeviceUI.pollAll(this)"
             title="Poll every enabled OLT and router right now">
       <i class="bi bi-arrow-repeat"></i> Poll all now
@@ -20,7 +20,7 @@
     <button class="btn btn-sm btn-primary" onclick="DeviceUI.open('olt', null)">
       <i class="bi bi-plus-lg"></i> Add OLT
     </button>
-    <button class="btn btn-sm btn-success" onclick="DeviceUI.open('router', null)">
+    <button class="btn btn-sm btn-outline-secondary" onclick="DeviceUI.open('router', null)">
       <i class="bi bi-plus-lg"></i> Add router
     </button>
   </div>
@@ -45,7 +45,7 @@
     <span class="small text-secondary">{{ registry.olts | length }} configured</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr>
           <th>Name</th><th>Branch / site</th><th>Host</th><th>SNMP</th>
@@ -146,7 +146,7 @@
     <span class="small text-secondary">{{ registry.routers | length }} configured</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-sm table-hover align-middle mb-0">
+    <table class="table table-sm table-hover align-middle mb-0 table-nowrap">
       <thead class="table-light">
         <tr>
           <th>Name</th><th>Host</th><th>API</th><th>User</th><th>Password</th>
