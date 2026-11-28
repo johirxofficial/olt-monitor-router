@@ -1,9 +1,10 @@
-/* Shared front-end helpers: theme, navigation rail, clock, auto refresh. */
+/* Shared front-end helpers: theme, navigation rail, clock, manual poll, auto refresh. */
 (function () {
   "use strict";
 
   var root = document.documentElement;
   var body = document.body;
+  var pollTimer = null;
 
   // ---- theme -------------------------------------------------------------
   var toggle = document.getElementById("theme-toggle");
@@ -70,12 +71,121 @@
   tick();
   setInterval(tick, 30000);
 
+  // ---- manual poll of every device ---------------------------------------
+  // One button, one request: the scheduler starts a fresh poll for every
+  // enabled OLT and router and skips any device that is already walking.
+  function pollNote(text, busy) {
+    document.querySelectorAll("[data-poll-status]").forEach(function (node) {
+      node.textContent = text || "";
+      node.classList.toggle("is-busy", !!busy);
+    });
+  }
+
+  function stopPollWatch() {
+    if (pollTimer) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function watchPoll(seed) {
+    if (pollTimer) { return; }
+    var sawActive = !!seed;
+    pollTimer = window.setInterval(function () {
+      fetch("/api/poll-status", { headers: { "Accept": "application/json" } })
+        .then(function (response) { return response.json(); })
+        .then(function (state) {
+          var count = state.count || 0;
+          if (count > 0) {
+            sawActive = true;
+            pollNote("Polling " + count + " device" + (count === 1 ? "" : "s") + "…", true);
+            return;
+          }
+          stopPollWatch();
+          // Keep an open editor or filter untouched; the user can reload when done.
+          var editing = document.activeElement;
+          var typing = editing && (
+            editing.tagName === "INPUT" ||
+            editing.tagName === "SELECT" ||
+            editing.tagName === "TEXTAREA"
+          );
+          if (sawActive && !typing && !document.querySelector(".modal.show")) {
+            window.location.reload();
+          } else {
+            pollNote("Poll finished", false);
+            window.setTimeout(function () { pollNote("", false); }, 4000);
+          }
+        })
+        .catch(function () {
+          stopPollWatch();
+          pollNote("", false);
+        });
+    }, 5000);
+  }
+
+  function pollAll(button) {
+    if (!button || button.disabled) { return; }
+    var original = button.innerHTML;
+    button.disabled = true;
+    button.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Starting';
+    pollNote("Requesting a full poll…", true);
+    fetch("/api/poll-all", { method: "POST", headers: { "Accept": "application/json" } })
+      .then(function (response) {
+        return response.json().then(function (payload) {
+          return { ok: response.ok, body: payload };
+        });
+      })
+      .then(function (result) {
+        if (!result.ok) {
+          throw new Error(result.body.detail || "could not start the poll");
+        }
+        var started = ((result.body.result || {}).started || []).length;
+        var running = ((result.body.result || {}).running || []).length;
+        pollNote(result.body.message || "Poll requested", started > 0 || running > 0);
+        if (started || running) {
+          watchPoll();
+        } else {
+          window.setTimeout(function () { pollNote("", false); }, 4000);
+        }
+      })
+      .catch(function (error) {
+        pollNote(error && error.message ? error.message : String(error), false);
+      })
+      .finally(function () {
+        button.disabled = false;
+        button.innerHTML = original;
+      });
+  }
+
+  document.querySelectorAll("[data-poll-all]").forEach(function (button) {
+    button.addEventListener("click", function () { pollAll(button); });
+  });
+
+  window.OLT = window.OLT || {};
+  window.OLT.pollAll = pollAll;
+
+  // Show a poll that is already running (scheduled or started from another tab).
+  if (document.querySelector("[data-poll-status]")) {
+    fetch("/api/poll-status", { headers: { "Accept": "application/json" } })
+      .then(function (response) { return response.json(); })
+      .then(function (state) {
+        var count = state.count || 0;
+        if (count > 0) {
+          pollNote("Polling " + count + " device" + (count === 1 ? "" : "s") + "…", true);
+          watchPoll(true);
+        }
+      })
+      .catch(function () { /* the page still works without the live note */ });
+  }
+
   // ---- auto refresh ------------------------------------------------------
-  // Never reload while the user is typing in a filter box and never while a
-  // modal or dropdown is open.
+  // Never reload while the user is typing, while a popup is open, or while a
+  // manual poll is still running (the poll watcher reloads when it finishes).
   var seconds = parseInt(body.getAttribute("data-refresh") || "30", 10);
   if (!isNaN(seconds) && seconds > 0) {
     setInterval(function () {
+      if (pollTimer) { return; }
       var el = document.activeElement;
       if (el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA")) {
         return;

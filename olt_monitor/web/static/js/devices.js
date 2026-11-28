@@ -420,58 +420,7 @@
   });
 
   function pollAll(button) {
-    var original = button.innerHTML;
-    button.disabled = true;
-    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> starting';
-    var statusEl = $("poll-all-status");
-    fetch("/api/poll-all", { method: "POST" })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
-      .then(function (res) {
-        if (!res.ok) {
-          showAlert("danger", res.body.detail || "could not start the poll");
-          return;
-        }
-        var result = res.body.result || {};
-        var started = (result.started || []).length;
-        var running = (result.running || []).length;
-        showAlert("success", res.body.message || "poll requested");
-        if (started || running) { watchPollStatus(); }
-      })
-      .catch(function (err) { showAlert("danger", String(err)); })
-      .finally(function () {
-        button.disabled = false;
-        button.innerHTML = original;
-      });
-  }
-
-  function watchPollStatus() {
-    var statusEl = $("poll-all-status");
-    var sawActive = false;
-    var timer = window.setInterval(function () {
-      fetch("/api/poll-status")
-        .then(function (r) { return r.json(); })
-        .then(function (state) {
-          var count = state.count || 0;
-          if (count > 0) {
-            sawActive = true;
-            if (statusEl) {
-              statusEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span> polling ' +
-                count + " device(s)";
-            }
-            return;
-          }
-          window.clearInterval(timer);
-          if (statusEl) { statusEl.textContent = ""; }
-          // Do not throw away an open editor: the user can refresh when done.
-          if (sawActive && !document.querySelector(".modal.show")) {
-            window.location.reload();
-          }
-        })
-        .catch(function () {
-          window.clearInterval(timer);
-          if (statusEl) { statusEl.textContent = ""; }
-        });
-    }, 5000);
+    if (window.OLT && window.OLT.pollAll) { window.OLT.pollAll(button); }
   }
 
   window.DeviceUI = {

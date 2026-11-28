@@ -561,6 +561,15 @@ pre, pre code {
   align-items: center;
   gap: 8px;
 }
+.poll-status {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.poll-status.is-busy {
+  color: var(--accent);
+}
 
 /* --------------------------------------------------------------------------
    cards / surfaces
@@ -1340,6 +1349,13 @@ td.power-weak { color: var(--bad); font-weight: 500; }
   inset: 0;
   width: 100% !important;
   height: 100% !important;
+}
+.chart-box > .chart-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 1rem;
+  text-align: center;
 }
 
 /* --------------------------------------------------------------------------

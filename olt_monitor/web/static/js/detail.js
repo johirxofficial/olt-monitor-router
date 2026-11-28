@@ -21,16 +21,21 @@
       .trim();
   }
 
+  function emptyChart(message) {
+    var box = canvas.parentNode;
+    canvas.remove();
+    var note = document.createElement("p");
+    note.className = "chart-empty small text-secondary mb-0";
+    note.textContent = message;
+    box.appendChild(note);
+  }
+
   fetch("/api/trend/onu/" + encodeURIComponent(ifindex) + "?olt=" + encodeURIComponent(olt) + "&hours=24")
     .then(function (r) { return r.json(); })
     .then(function (rows) {
       rows = (rows || []).slice().reverse();  // the API returns newest first
       if (!rows.length) {
-        canvas.parentNode.insertAdjacentHTML(
-          "beforeend",
-          '<p class="small text-secondary mb-0 mt-2">No history yet - it fills up as the OLT is polled.</p>'
-        );
-        canvas.remove();
+        emptyChart("No history yet - it fills up as the OLT is polled.");
         return;
       }
 
@@ -49,6 +54,12 @@
       });
       var rx = rows.map(function (row) { return row.rx_power_dbm; });
       var tx = rows.map(function (row) { return row.tx_power_dbm; });
+
+      var hasValue = function (value) { return value !== null && value !== undefined; };
+      if (!rx.some(hasValue) && !tx.some(hasValue)) {
+        emptyChart("No optical readings in the last 24 hours.");
+        return;
+      }
 
       var info = token("--info");
       var ok = token("--ok");

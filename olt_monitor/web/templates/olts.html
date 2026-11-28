@@ -12,8 +12,17 @@
     </p>
   </div>
   <div class="page-actions">
+    {% if can_manage %}
+    <span class="poll-status mono" data-poll-status aria-live="polite"></span>
+    {% endif %}
     <a class="btn btn-sm btn-outline-secondary" href="/devices"><i class="bi bi-sliders"></i> Manage devices</a>
-    <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    <button class="btn btn-sm btn-outline-secondary" type="button" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i> Reload</button>
+    {% if can_manage %}
+    <button class="btn btn-sm btn-primary" type="button" data-poll-all
+            title="Poll every enabled OLT and router right now">
+      <i class="bi bi-arrow-repeat"></i> Poll all now
+    </button>
+    {% endif %}
   </div>
 </div>
 

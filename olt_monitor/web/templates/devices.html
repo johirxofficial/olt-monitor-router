@@ -12,8 +12,8 @@
   </div>
   {% if can_manage %}
   <div class="d-flex flex-wrap gap-2 align-items-center">
-    <span id="poll-all-status" class="mono"></span>
-    <button class="btn btn-sm btn-outline-primary" onclick="DeviceUI.pollAll(this)"
+    <span id="poll-all-status" class="poll-status mono" data-poll-status aria-live="polite"></span>
+    <button class="btn btn-sm btn-outline-primary" type="button" data-poll-all
             title="Poll every enabled OLT and router right now">
       <i class="bi bi-arrow-repeat"></i> Poll all now
     </button>

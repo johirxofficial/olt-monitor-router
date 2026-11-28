@@ -30,7 +30,30 @@ offline IEEE OUI database), **per-account permission switches**, and a
 
 ---
 
-## What's new in 3.5.8
+## What's new in 3.5.9
+
+**One button for a full poll, and the user page is fixed**
+
+* **`Poll all now` is on the dashboard and the OLT overview**, not only on the
+  Devices page. One click asks the scheduler for an immediate poll of every
+  enabled OLT and router; devices already walking are skipped, so it never
+  starts a second concurrent SNMP walk.
+* **Live poll note.** While the full poll runs, the header shows
+  `Polling N devices…` and the page reloads by itself when the last device
+  finishes. Page auto-refresh pauses during the poll, so the note is not lost.
+* **Scheduled polling is unchanged** at every 10 minutes. The sidebar and
+  footer now say `Devices every 10 min`, separately from the 30 s page refresh.
+* **Fixed `/user` 500.** The subscriber record used to be passed to the template
+  as `user`, shadowing the signed-in account that the shell needs. It is now
+  `subscriber`, so every PPPoE user detail page renders.
+* **Fixed `/admin/users` sidebar.** The page replaced the current account's
+  permission flags with the permission catalogue, which hid Settings, Tools and
+  other links. It now uses `permission_meta`, so navigation stays intact.
+* **Empty optical charts** show a short "No optical readings in the last 24
+  hours" note instead of an empty 0-1 axis, and the app now ships a favicon.
+* No schema change and no configuration change is required.
+
+### From 3.5.8
 
 **A calmer console: instrument panel, not SaaS**
 
@@ -1466,6 +1489,11 @@ The config loader, the database schema and the config file all changed together.
   six `users.perm_*` flags (one-time `permissions_v1` migration defaults them for
   every existing account) and `olt_onu_current.vendor`; `init_db()` applies them
   in place on first start;
+* **3.5.9 adds a full-poll button and fixes two shell bugs** — dashboard and
+  OLT overview can poll every enabled device on demand, with a live
+  `Polling N devices…` note; the PPPoE user page no longer crashes from a
+  template variable clash, and the Web users page keeps the sidebar intact.
+  Polling remains every 600 s. No schema or configuration change.
 * **3.5.8 rebuilds the interface as an instrument panel** — fixed navigation
   rail, quiet topbar, IBM Plex type, one amber accent and a single rich optical
   chart. Health gauges, badges, tables, forms and public pages share the same

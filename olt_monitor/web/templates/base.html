@@ -17,6 +17,7 @@
       } catch (e) { /* private mode */ }
     })();
   </script>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -77,7 +78,7 @@
 
     <div class="sidebar-foot">
       <span class="lamp is-up" role="img" aria-label="Live"><i></i><i></i><i></i></span>
-      <span>Auto-refresh {{ refresh_seconds }}s</span>
+      <span>Devices every {{ poll_label }}</span>
       <span class="version">v{{ version }}</span>
     </div>
   </aside>

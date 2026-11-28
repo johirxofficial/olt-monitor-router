@@ -8,10 +8,17 @@
     <p class="page-sub">
       {{ data.olts | length }} OLT{{ '' if data.olts | length == 1 else 's' }}
       &middot; {{ data.routers | length }} router{{ '' if data.routers | length == 1 else 's' }}
-      &middot; refreshed every {{ refresh_seconds }}s
+      &middot; devices every {{ poll_label }}
     </p>
   </div>
   <div class="page-actions">
+    {% if can_manage %}
+    <span class="poll-status mono" data-poll-status aria-live="polite"></span>
+    <button class="btn btn-sm btn-primary" type="button" data-poll-all
+            title="Poll every enabled OLT and router right now">
+      <i class="bi bi-arrow-repeat"></i> Poll all now
+    </button>
+    {% endif %}
     <a class="btn btn-sm btn-outline-secondary" href="/alerts">
       Alerts
       <span class="mono ms-1">{{ data.alert_total }}</span>

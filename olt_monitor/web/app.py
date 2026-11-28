@@ -1395,6 +1395,12 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             refresh = int(site.get("refresh_seconds") or dig(cfg, "app.refresh_seconds", 30))
         except (TypeError, ValueError):
             refresh = dig(cfg, "app.refresh_seconds", 30)
+        try:
+            poll = int(dig(cfg, "polling.olt_interval_seconds", 600))
+        except (TypeError, ValueError):
+            poll = 600
+        poll = max(5, poll)
+        poll_label = f"{poll // 60} min" if poll % 60 == 0 else f"{poll}s"
         base = {
             "request": request,
             "app_title": site.get("site_name") or dig(cfg, "app.title", "OLT Monitor Router"),
@@ -1402,6 +1408,8 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             "site": site,
             "version": __version__,
             "refresh_seconds": max(5, refresh),
+            "poll_seconds": poll,
+            "poll_label": poll_label,
             "active": "",
             "cfg": cfg,
             "user": user,
@@ -2012,7 +2020,7 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
             {
                 "active": "users",
                 "router": router,
-                "user": user,
+                "subscriber": user,
                 "onu": onu,
                 "pon": pon_info,
                 "caller_vendor": oui_mod.vendor_for(user.get("caller_id")),
@@ -2353,7 +2361,7 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
                     {"key": r, "label": auth.ROLE_LABELS[r], "hint": auth.ROLE_HINTS[r]}
                     for r in auth.ROLES
                 ],
-                "permissions": auth.PERMISSIONS,
+                "permission_meta": auth.PERMISSIONS,
                 "permission_keys": auth.PERMISSION_KEYS,
                 "msg": msg,
                 "err": err,
@@ -2622,6 +2630,10 @@ def create_app(cfg: dict, monitor: Any = None) -> FastAPI:
         )
 
     # ---- JSON API ------------------------------------------------------
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon() -> RedirectResponse:
+        return RedirectResponse("/static/favicon.svg", status_code=307)
+
     @app.get("/api/health")
     def api_health() -> dict[str, Any]:
         olts, routers = _devices(db_path, cfg)
